@@ -249,7 +249,7 @@ class _ProjectMapState extends State<ProjectMap> {
   Widget _controls() {
     return Material(
       elevation: 2,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       color: AppColors.surface,
       child: Column(
         children: [
@@ -282,7 +282,7 @@ class _ProjectMapState extends State<ProjectMap> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (context) => SafeArea(
         child: Column(
@@ -351,7 +351,7 @@ class _ProjectMapState extends State<ProjectMap> {
     return Tooltip(
       message: tooltip,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: SizedBox(
           height: 42,
@@ -366,7 +366,7 @@ class _ProjectMapState extends State<ProjectMap> {
     return Tooltip(
       message: 'Reset north',
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         onTap: _resetRotation,
         child: SizedBox(
           height: 42,

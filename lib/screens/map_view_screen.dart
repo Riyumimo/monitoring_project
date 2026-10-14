@@ -73,7 +73,7 @@ class MapViewScreen extends StatelessWidget {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (context) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),

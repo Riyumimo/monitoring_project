@@ -302,7 +302,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         ),
         const SizedBox(height: 16),
         ClipRRect(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(12),
           child: SizedBox(
             height: 300,
             child: FlutterMap(

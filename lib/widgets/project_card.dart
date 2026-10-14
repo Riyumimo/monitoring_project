@@ -23,7 +23,7 @@ class ProjectCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         side: BorderSide(
           color: selected ? AppColors.primary : AppColors.border,
           width: selected ? 1.8 : 1,

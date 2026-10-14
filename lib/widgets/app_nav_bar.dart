@@ -59,7 +59,7 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
             width: 34,
             decoration: BoxDecoration(
               color: AppColors.primary,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(Icons.public, color: Colors.white, size: 20),
           ),
@@ -82,7 +82,7 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
           tooltip: 'Account',
           offset: const Offset(0, 50),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
           ),
           onSelected: (value) {
             if (value == 'logout') onLogout();
@@ -184,7 +184,7 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(12),
         onTap: () => onSectionSelected(index),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -192,7 +192,7 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
             color: selected
                 ? AppColors.primary.withValues(alpha: 0.1)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
