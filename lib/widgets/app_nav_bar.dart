@@ -22,7 +22,7 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 54);
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   String get _initials {
     final parts = userName.trim().split(RegExp(r'\s+'));
@@ -72,6 +72,18 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var i = 0; i < sections.length; i++)
+                    _navItem(sections[i], i),
+                ],
               ),
             ),
           ),
@@ -159,23 +171,6 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ],
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(54),
-        child: Container(
-          height: 54,
-          alignment: Alignment.centerLeft,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                for (var i = 0; i < sections.length; i++)
-                  _navItem(sections[i], i),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 

@@ -85,24 +85,28 @@ class MockData {
           name: 'Bob Worker',
           email: 'worker@geoterra.com',
           role: 'FieldWorker',
+          phone: '+62 812-3456-7890',
         ),
         User(
           id: 'u3',
           name: 'Carlos Rivera',
           email: 'carlos@geoterra.com',
           role: 'FieldWorker',
+          phone: '+62 813-2233-4455',
         ),
         User(
           id: 'u4',
           name: 'Dana Putri',
           email: 'dana@geoterra.com',
           role: 'FieldWorker',
+          phone: '+62 815-7788-9900',
         ),
         User(
           id: 'u5',
           name: 'Erik Larsen',
           email: 'erik@geoterra.com',
           role: 'FieldWorker',
+          phone: '+62 817-1122-3344',
         ),
       ];
 

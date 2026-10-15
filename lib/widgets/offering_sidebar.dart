@@ -65,23 +65,21 @@ class OfferingSidebar extends StatelessWidget {
               children: [
                 _logo(),
                 const SizedBox(width: 10),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  alignment: Alignment.centerLeft,
-                  child: collapsed
-                      ? const SizedBox.shrink()
-                      : const Expanded(
-                          child: Text(
-                            'Offering',
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
+                Expanded(
+                  child: AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    alignment: Alignment.centerLeft,
+                    child: const Text(
+                      'Offering',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 4),
                 _toggle(),
@@ -106,9 +104,8 @@ class OfferingSidebar extends StatelessWidget {
   Widget _toggle() {
     return IconButton(
       onPressed: onToggle,
-      tooltip: collapsed ? 'Expand menu' : 'Collapse menu',
       icon: Icon(
-        collapsed ? Icons.chevron_right : Icons.chevron_left,
+        collapsed ? Icons.menu : Icons.close,
         color: AppColors.textSecondary,
       ),
     );
@@ -144,35 +141,24 @@ class OfferingSidebar extends StatelessWidget {
                   color:
                       selected ? AppColors.primary : AppColors.textSecondary,
                 ),
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  opacity: collapsed ? 0 : 1,
-                  child: IgnorePointer(
-                    ignoring: collapsed,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      width: collapsed ? 0 : null,
-                      padding: EdgeInsets.only(left: collapsed ? 0 : 12),
-                      child: Flexible(
-                        child: Text(
-                          item.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight:
-                                selected ? FontWeight.w700 : FontWeight.w500,
-                            color: selected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                          ),
-                        ),
+                if (!collapsed) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w500,
+                        color: selected
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

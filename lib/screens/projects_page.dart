@@ -30,6 +30,8 @@ extension _ColX on _Col {
         _Col.status => 130,
         _Col.payment => 120,
       };
+
+  int get flex => width.round();
 }
 
 class ProjectsPage extends StatefulWidget {
@@ -104,8 +106,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
       case 2:
         return p.status == ProjectStatus.inProgress;
       case 3:
-        return p.status == ProjectStatus.completed ||
-            p.status == ProjectStatus.onHold;
+        return p.paidStatus == PaidStatus.paid;
       default:
         return true;
     }
@@ -276,7 +277,17 @@ class _ProjectsPageState extends State<ProjectsPage> {
               children: [
                 _toolbar(),
                 Expanded(
-                  child: projects.isEmpty ? _emptyState() : _table(projects),
+                  child: projects.isEmpty
+                      ? _emptyState()
+                      : RefreshIndicator(
+                          onRefresh: () =>
+                              context.read<ProjectProvider>().fetchProjects(),
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            child: _table(projects),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -292,7 +303,6 @@ class _ProjectsPageState extends State<ProjectsPage> {
         columns.fold<double>(0, (sum, c) => sum + c.width) + _wActions;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -301,29 +311,26 @@ class _ProjectsPageState extends State<ProjectsPage> {
       clipBehavior: Clip.antiAlias,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final width =
-              fixed > constraints.maxWidth ? fixed : constraints.maxWidth;
+          final fill = fixed <= constraints.maxWidth;
           return Scrollbar(
             controller: _horizontal,
             child: SingleChildScrollView(
               controller: _horizontal,
               scrollDirection: Axis.horizontal,
               child: SizedBox(
-                width: width,
+                width: fill ? constraints.maxWidth : fixed,
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    _headerRow(columns),
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: () =>
-                            context.read<ProjectProvider>().fetchProjects(),
-                        child: ListView.builder(
-                          itemCount: projects.length,
-                          itemBuilder: (context, index) =>
-                              _tableRow(projects[index], index, columns),
-                        ),
+                    _headerRow(columns, fill),
+                    for (var i = 0; i < projects.length; i++)
+                      _tableRow(
+                        projects[i],
+                        i,
+                        columns,
+                        fill,
+                        i == projects.length - 1,
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -334,23 +341,38 @@ class _ProjectsPageState extends State<ProjectsPage> {
     );
   }
 
-  Widget _headerRow(List<_Col> columns) {
-    return Row(
-      children: [
-        for (final c in columns)
-          _gridCell(width: c.width, header: true, child: _headerText(c.label)),
-        _gridCell(
-          width: _wActions,
-          header: true,
-          center: true,
-          child: _headerText(''),
-        ),
-        _gridCell(expand: true, header: true, child: const SizedBox.shrink()),
-      ],
+  Widget _headerRow(List<_Col> columns, bool fill) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final c in columns)
+            _gridCell(
+              width: c.width,
+              flex: fill ? c.flex : null,
+              header: true,
+              end: true,
+              child: _headerText(c.label),
+            ),
+          _gridCell(
+            width: _wActions,
+            header: true,
+            last: true,
+            center: true,
+            child: _headerText(''),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _tableRow(Project project, int index, List<_Col> columns) {
+  Widget _tableRow(
+    Project project,
+    int index,
+    List<_Col> columns,
+    bool fill,
+    bool isLast,
+  ) {
     final stripe = index.isEven
         ? AppColors.surface
         : AppColors.background.withValues(alpha: 0.5);
@@ -358,17 +380,27 @@ class _ProjectsPageState extends State<ProjectsPage> {
       color: stripe,
       child: InkWell(
         onTap: () => _openProject(project),
-        child: Row(
-          children: [
-            for (final c in columns)
-              _gridCell(width: c.width, child: _cellFor(project, c)),
-            _gridCell(
-              width: _wActions,
-              center: true,
-              child: _rowAction(project),
-            ),
-            _gridCell(expand: true, child: const SizedBox.shrink()),
-          ],
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final c in columns)
+                _gridCell(
+                  width: c.width,
+                  flex: fill ? c.flex : null,
+                  bottom: !isLast,
+                  end: true,
+                  child: _cellFor(project, c),
+                ),
+              _gridCell(
+                width: _wActions,
+                last: true,
+                center: true,
+                bottom: !isLast,
+                child: _rowAction(project),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -410,27 +442,35 @@ class _ProjectsPageState extends State<ProjectsPage> {
 
   Widget _gridCell({
     double? width,
-    bool expand = false,
+    int? flex,
+    bool last = false,
     bool header = false,
     bool center = false,
+    bool end = false,
+    bool bottom = true,
     required Widget child,
   }) {
     final cell = Container(
-      width: expand ? null : width,
-      alignment: center ? Alignment.center : Alignment.centerLeft,
+      width: flex != null ? null : width,
+      alignment: end
+          ? Alignment.centerRight
+          : center
+              ? Alignment.center
+              : Alignment.centerLeft,
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: header ? 12 : 10),
       decoration: BoxDecoration(
         color: header ? AppColors.background : null,
         border: Border(
-          right: expand
+          right: last
               ? BorderSide.none
               : const BorderSide(color: AppColors.border),
-          bottom: const BorderSide(color: AppColors.border),
+          bottom:
+              bottom ? const BorderSide(color: AppColors.border) : BorderSide.none,
         ),
       ),
       child: child,
     );
-    return expand ? Expanded(child: cell) : cell;
+    return flex != null ? Expanded(flex: flex, child: cell) : cell;
   }
 
   Widget _headerText(String text) {

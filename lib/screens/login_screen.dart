@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../services/error_logger.dart';
 import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -29,7 +30,8 @@ class _LoginScreenState extends State<LoginScreen> {
             _emailController.text,
             _passwordController.text,
           );
-    } catch (e) {
+    } catch (e, st) {
+      ErrorLogger.log(e, st, 'LoginScreen._login');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Login failed: $e')),

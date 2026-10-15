@@ -7,8 +7,45 @@ import '../services/mock_data.dart';
 import '../theme/app_theme.dart';
 import '../widgets/stat_card.dart';
 
-class WorkersView extends StatelessWidget {
+enum _WCol { name, email, phone, assigned, inProgress, status }
+
+extension _WColX on _WCol {
+  String get label => switch (this) {
+        _WCol.name => 'Name',
+        _WCol.email => 'Email',
+        _WCol.phone => 'Phone',
+        _WCol.assigned => 'Assigned',
+        _WCol.inProgress => 'In Progress',
+        _WCol.status => 'Status',
+      };
+
+  double get width => switch (this) {
+        _WCol.name => 200,
+        _WCol.email => 240,
+        _WCol.phone => 170,
+        _WCol.assigned => 110,
+        _WCol.inProgress => 130,
+        _WCol.status => 120,
+      };
+
+  int get flex => width.round();
+}
+
+class WorkersView extends StatefulWidget {
   const WorkersView({super.key});
+
+  @override
+  State<WorkersView> createState() => _WorkersViewState();
+}
+
+class _WorkersViewState extends State<WorkersView> {
+  final ScrollController _horizontal = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,122 +89,225 @@ class WorkersView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...workers.map((worker) => _workerCard(worker, projects)),
+          _table(workers, projects),
         ],
       ),
     );
   }
 
-  Widget _workerCard(User worker, List<Project> projects) {
-    final assigned = projects
-        .where((p) => p.assignedWorkerId == worker.id)
-        .toList();
-    final inProgress =
-        assigned.where((p) => p.status == ProjectStatus.inProgress).length;
+  Widget _table(List<User> workers, List<Project> projects) {
+    const columns = _WCol.values;
+    final fixed = columns.fold<double>(0, (sum, c) => sum + c.width);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              _avatar(worker.name),
-              const SizedBox(width: 14),
-              Expanded(
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final fill = fixed <= constraints.maxWidth;
+          return Scrollbar(
+            controller: _horizontal,
+            child: SingleChildScrollView(
+              controller: _horizontal,
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: fill ? constraints.maxWidth : fixed,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      worker.name,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                    _headerRow(columns, fill),
+                    for (var i = 0; i < workers.length; i++)
+                      _tableRow(
+                        workers[i],
+                        i,
+                        columns,
+                        projects,
+                        fill,
+                        i == workers.length - 1,
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      worker.email,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.folder_outlined,
-                            size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 5),
-                        Text(
-                          '${assigned.length} assigned',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        if (inProgress > 0) ...[
-                          const SizedBox(width: 12),
-                          Icon(Icons.autorenew,
-                              size: 14, color: AppColors.inProgress),
-                          const SizedBox(width: 5),
-                          Text(
-                            '$inProgress in progress',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.inProgress,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.completed.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text(
-                  'Active',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.completed,
-                  ),
-                ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _headerRow(List<_WCol> columns, bool fill) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < columns.length; i++)
+            _gridCell(
+              width: columns[i].width,
+              flex: fill ? columns[i].flex : null,
+              last: i == columns.length - 1,
+              header: true,
+              end: true,
+              child: _headerText(columns[i].label),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tableRow(
+    User worker,
+    int index,
+    List<_WCol> columns,
+    List<Project> projects,
+    bool fill,
+    bool isLast,
+  ) {
+    final assigned =
+        projects.where((p) => p.assignedWorkerId == worker.id).toList();
+    final inProgress = assigned
+        .where((p) => p.status == ProjectStatus.inProgress)
+        .length;
+    final stripe = index.isEven
+        ? AppColors.surface
+        : AppColors.background.withValues(alpha: 0.5);
+
+    return Material(
+      color: stripe,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < columns.length; i++)
+              _gridCell(
+                width: columns[i].width,
+                flex: fill ? columns[i].flex : null,
+                last: i == columns.length - 1,
+                bottom: !isLast,
+                end: true,
+                child:
+                    _cellFor(worker, columns[i], assigned.length, inProgress),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _avatar(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    final initials = parts.length >= 2
-        ? (parts.first[0] + parts.last[0]).toUpperCase()
-        : parts.first[0].toUpperCase();
-    return Container(
-      height: 46,
-      width: 46,
+  Widget _cellFor(User worker, _WCol c, int assigned, int inProgress) =>
+      switch (c) {
+        _WCol.name => Text(
+            worker.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        _WCol.email => _plainText(worker.email),
+        _WCol.phone => _plainText(
+            (worker.phone == null || worker.phone!.isEmpty)
+                ? '—'
+                : worker.phone!,
+          ),
+        _WCol.assigned => Text(
+            '$assigned',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        _WCol.inProgress => Text(
+            '$inProgress',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: inProgress > 0
+                  ? AppColors.inProgress
+                  : AppColors.textSecondary,
+            ),
+          ),
+        _WCol.status => _pill('Active', AppColors.completed),
+      };
+
+  Widget _gridCell({
+    double? width,
+    int? flex,
+    bool last = false,
+    bool header = false,
+    bool center = false,
+    bool end = false,
+    bool bottom = true,
+    required Widget child,
+  }) {
+    final cell = Container(
+      width: flex != null ? null : width,
+      alignment: end
+          ? Alignment.centerRight
+          : center
+              ? Alignment.center
+              : Alignment.centerLeft,
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: header ? 12 : 10),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        color: header ? AppColors.background : null,
+        border: Border(
+          right: last
+              ? BorderSide.none
+              : const BorderSide(color: AppColors.border),
+          bottom:
+              bottom ? const BorderSide(color: AppColors.border) : BorderSide.none,
+        ),
       ),
-      alignment: Alignment.center,
+      child: child,
+    );
+    return flex != null ? Expanded(flex: flex, child: cell) : cell;
+  }
+
+  Widget _headerText(String text) {
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.4,
+        color: AppColors.textSecondary,
+      ),
+    );
+  }
+
+  Widget _plainText(String text) {
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+    );
+  }
+
+  Widget _pill(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
       child: Text(
-        initials,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          color: AppColors.primary,
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: color,
         ),
       ),
     );
