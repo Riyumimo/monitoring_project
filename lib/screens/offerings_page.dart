@@ -77,7 +77,7 @@ class _OfferingsPageState extends State<OfferingsPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProjectProvider>().fetchProjects();
+      context.read<ProjectProvider>().ensureProjectsLoaded();
     });
   }
 

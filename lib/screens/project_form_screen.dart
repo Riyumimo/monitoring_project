@@ -62,7 +62,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         _populate(project);
       } else {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
-          await context.read<ProjectProvider>().fetchProjects();
+          await context.read<ProjectProvider>().ensureProjectsLoaded();
           if (!mounted) return;
           final loaded = context.read<ProjectProvider>().projectById(projectId);
           if (loaded != null) setState(() => _populate(loaded));
@@ -78,7 +78,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         _populateFromOffering(offering);
       } else {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
-          await context.read<ProjectProvider>().fetchProjects();
+          await context.read<ProjectProvider>().ensureProjectsLoaded();
           if (!mounted) return;
           final loaded = context.read<ProjectProvider>().offeringById(
             offeringId,

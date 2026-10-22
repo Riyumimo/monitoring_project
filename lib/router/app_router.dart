@@ -9,6 +9,7 @@ import '../screens/offering_form_screen.dart';
 import '../screens/offerings_page.dart';
 import '../screens/project_detail_screen.dart';
 import '../screens/project_form_screen.dart';
+import '../screens/timeline_page.dart';
 import '../screens/tools_view.dart';
 import '../screens/workers_view.dart';
 
@@ -22,6 +23,7 @@ class AppRouter {
   static const String offerings = '/offerings';
   static const String tools = '/tools';
   static const String workers = '/workers';
+  static const String timeline = '/timeline';
   static const String newOffering = '/offerings/new';
 
   static String offeringDetail(String id, {int tab = 0}) =>
@@ -43,10 +45,7 @@ class AppRouter {
       return null;
     },
     routes: [
-      GoRoute(
-        path: login,
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: login, builder: (context, state) => const LoginScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             DashboardShell(navigationShell: navigationShell),
@@ -83,6 +82,14 @@ class AppRouter {
               ),
             ],
           ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: timeline,
+                builder: (context, state) => const TimelinePage(),
+              ),
+            ],
+          ),
         ],
       ),
       // Offering form (create / edit).
@@ -93,8 +100,7 @@ class AppRouter {
       GoRoute(
         path: '/offerings/:id',
         builder: (context, state) {
-          final tab =
-              int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0;
+          final tab = int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0;
           return OfferingDetailScreen(
             id: state.pathParameters['id']!,
             initialTab: tab.clamp(0, 3),

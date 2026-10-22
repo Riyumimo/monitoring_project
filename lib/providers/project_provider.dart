@@ -8,6 +8,7 @@ import '../services/mock_data.dart';
 class ProjectProvider extends ChangeNotifier {
   List<Offering> _offerings = [];
   List<Project> _projects = [];
+  bool _hasLoaded = false;
   bool _isLoading = false;
   String? _error;
 
@@ -37,21 +38,59 @@ class ProjectProvider extends ChangeNotifier {
     return null;
   }
 
+  /// Loads the initial project data when a screen needs it without replacing
+  /// data that has already been loaded or added.
+  Future<void> ensureProjectsLoaded() async {
+    if (_isLoading ||
+        _hasLoaded ||
+        _offerings.isNotEmpty ||
+        _projects.isNotEmpty) {
+      return;
+    }
+    await fetchProjects();
+  }
+
   Future<void> fetchProjects() async {
+    if (_isLoading) return;
+
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       await Future.delayed(const Duration(milliseconds: 300));
-      _offerings = MockData.offerings();
-      _projects = MockData.projects();
+
+      // Keep in-memory additions and edits when reloading. Local records win
+      // when the same id exists in the mock data.
+      _offerings = _mergeOfferings(MockData.offerings(), _offerings);
+      _projects = _mergeProjects(MockData.projects(), _projects);
+      _hasLoaded = true;
     } catch (e) {
       _error = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  List<Offering> _mergeOfferings(List<Offering> loaded, List<Offering> local) {
+    final byId = <String, Offering>{
+      for (final offering in loaded) offering.id: offering,
+    };
+    for (final offering in local) {
+      byId[offering.id] = offering;
+    }
+    return byId.values.toList();
+  }
+
+  List<Project> _mergeProjects(List<Project> loaded, List<Project> local) {
+    final byId = <String, Project>{
+      for (final project in loaded) project.id: project,
+    };
+    for (final project in local) {
+      byId[project.id] = project;
+    }
+    return byId.values.toList();
   }
 
   Future<void> addOffering(Offering offering) async {

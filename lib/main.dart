@@ -3,6 +3,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/project_provider.dart';
+import 'providers/timeline_provider.dart';
 import 'router/app_router.dart';
 import 'services/error_logger.dart';
 import 'theme/app_theme.dart';
@@ -19,6 +20,9 @@ Future<void> main() async {
         ChangeNotifierProvider<AuthProvider>.value(value: auth),
         ChangeNotifierProvider<ProjectProvider>(
           create: (_) => ProjectProvider(),
+        ),
+        ChangeNotifierProvider<TimelineProvider>(
+          create: (_) => TimelineProvider(),
         ),
       ],
       child: MyApp(auth: auth),

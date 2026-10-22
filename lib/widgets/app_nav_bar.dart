@@ -43,6 +43,8 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
         return Icons.handyman_outlined;
       case 'Workers':
         return Icons.people_outline;
+      case 'Timeline':
+        return Icons.view_timeline_outlined;
       default:
         return Icons.circle_outlined;
     }
@@ -106,8 +108,7 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor:
-                        AppColors.primary.withValues(alpha: 0.12),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                     child: Text(
                       _initials,
                       style: const TextStyle(
@@ -202,8 +203,7 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color:
-                      selected ? AppColors.primary : AppColors.textSecondary,
+                  color: selected ? AppColors.primary : AppColors.textSecondary,
                 ),
               ),
             ],

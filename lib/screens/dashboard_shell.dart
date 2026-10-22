@@ -13,8 +13,7 @@ class DashboardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-    final roleLabel =
-        user?.role == 'Manager' ? 'Manager' : 'Field Worker';
+    final roleLabel = user?.role == 'Manager' ? 'Manager' : 'Field Worker';
 
     return Scaffold(
       appBar: AppNavBar(
@@ -22,7 +21,13 @@ class DashboardShell extends StatelessWidget {
         userName: user?.name ?? 'User',
         userRole: roleLabel,
         onLogout: () => context.read<AuthProvider>().logout(),
-        sections: const ['Dashboard', 'Offering', 'Tools', 'Workers'],
+        sections: const [
+          'Dashboard',
+          'Offering',
+          'Tools',
+          'Workers',
+          'Timeline',
+        ],
         currentIndex: navigationShell.currentIndex,
         onSectionSelected: (index) => navigationShell.goBranch(
           index,

@@ -63,7 +63,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       _populate(offering);
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await context.read<ProjectProvider>().fetchProjects();
+        await context.read<ProjectProvider>().ensureProjectsLoaded();
         if (!mounted) return;
         final loaded = context.read<ProjectProvider>().offeringById(id);
         if (loaded != null) {

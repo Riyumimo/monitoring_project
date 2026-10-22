@@ -26,7 +26,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProjectProvider>().fetchProjects();
+      context.read<ProjectProvider>().ensureProjectsLoaded();
     });
   }
 
