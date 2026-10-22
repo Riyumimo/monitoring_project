@@ -1,33 +1,34 @@
 import 'package:flutter/material.dart';
-import '../models/project.dart';
-import '../theme/app_theme.dart';
-import 'project_map.dart';
 
-class ProjectMapSplit extends StatefulWidget {
+import '../models/offering.dart';
+import '../theme/app_theme.dart';
+import 'offering_map.dart';
+
+class OfferingMapSplit extends StatefulWidget {
   final Widget leftPanel;
-  final List<Project> projects;
+  final List<Offering> offerings;
   final String? selectedId;
-  final ValueChanged<Project> onSelect;
+  final ValueChanged<Offering> onSelect;
   final double breakpoint;
 
-  const ProjectMapSplit({
+  const OfferingMapSplit({
     super.key,
     required this.leftPanel,
-    required this.projects,
+    required this.offerings,
     required this.selectedId,
     required this.onSelect,
     this.breakpoint = 900,
   });
 
   @override
-  State<ProjectMapSplit> createState() => _ProjectMapSplitState();
+  State<OfferingMapSplit> createState() => _OfferingMapSplitState();
 }
 
-class _ProjectMapSplitState extends State<ProjectMapSplit> {
+class _OfferingMapSplitState extends State<OfferingMapSplit> {
   bool _showMap = false;
 
   @override
-  void didUpdateWidget(covariant ProjectMapSplit oldWidget) {
+  void didUpdateWidget(covariant OfferingMapSplit oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.selectedId != null && widget.selectedId != oldWidget.selectedId) {
       _showMap = true;
@@ -73,10 +74,10 @@ class _ProjectMapSplitState extends State<ProjectMapSplit> {
   }
 
   Widget _mapPanel() {
-    return ProjectMap(
-      projects: widget.projects,
+    return OfferingMap(
+      offerings: widget.offerings,
       selectedId: widget.selectedId,
-      onProjectTap: widget.onSelect,
+      onOfferingTap: widget.onSelect,
     );
   }
 

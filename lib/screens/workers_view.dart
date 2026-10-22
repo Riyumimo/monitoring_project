@@ -1,31 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../models/project.dart';
 import '../models/user.dart';
 import '../providers/project_provider.dart';
+import '../services/assignment_rules.dart';
 import '../services/mock_data.dart';
 import '../theme/app_theme.dart';
 import '../widgets/stat_card.dart';
 
-enum _WCol { name, email, phone, assigned, inProgress, status }
+enum _WCol { name, type, email, phone, load, inProgress, availability }
 
 extension _WColX on _WCol {
   String get label => switch (this) {
         _WCol.name => 'Name',
+        _WCol.type => 'Type',
         _WCol.email => 'Email',
         _WCol.phone => 'Phone',
-        _WCol.assigned => 'Assigned',
+        _WCol.load => 'Load',
         _WCol.inProgress => 'In Progress',
-        _WCol.status => 'Status',
+        _WCol.availability => 'Availability',
       };
 
   double get width => switch (this) {
-        _WCol.name => 200,
-        _WCol.email => 240,
-        _WCol.phone => 170,
-        _WCol.assigned => 110,
-        _WCol.inProgress => 130,
-        _WCol.status => 120,
+        _WCol.name => 190,
+        _WCol.type => 120,
+        _WCol.email => 230,
+        _WCol.phone => 165,
+        _WCol.load => 100,
+        _WCol.inProgress => 120,
+        _WCol.availability => 130,
       };
 
   int get flex => width.round();
@@ -50,8 +54,9 @@ class _WorkersViewState extends State<WorkersView> {
   @override
   Widget build(BuildContext context) {
     final workers = MockData.workers();
-    final projects = context.watch<ProjectProvider>().projects;
-    final active = projects.where((p) => p.status == ProjectStatus.inProgress);
+    final provider = context.watch<ProjectProvider>();
+    final active = provider.projects
+        .where((p) => p.status == ProjectStatus.inProgress);
 
     return Container(
       color: AppColors.background,
@@ -72,7 +77,7 @@ class _WorkersViewState extends State<WorkersView> {
               Expanded(
                 child: StatCard(
                   value: '${active.length}',
-                  label: 'Active Assignments',
+                  label: 'Active Projects',
                   icon: Icons.assignment_turned_in_outlined,
                   color: AppColors.inProgress,
                 ),
@@ -89,13 +94,13 @@ class _WorkersViewState extends State<WorkersView> {
             ),
           ),
           const SizedBox(height: 12),
-          _table(workers, projects),
+          _table(workers, provider),
         ],
       ),
     );
   }
 
-  Widget _table(List<User> workers, List<Project> projects) {
+  Widget _table(List<User> workers, ProjectProvider provider) {
     const columns = _WCol.values;
     final fixed = columns.fold<double>(0, (sum, c) => sum + c.width);
 
@@ -125,7 +130,7 @@ class _WorkersViewState extends State<WorkersView> {
                         workers[i],
                         i,
                         columns,
-                        projects,
+                        provider,
                         fill,
                         i == workers.length - 1,
                       ),
@@ -162,15 +167,20 @@ class _WorkersViewState extends State<WorkersView> {
     User worker,
     int index,
     List<_WCol> columns,
-    List<Project> projects,
+    ProjectProvider provider,
     bool fill,
     bool isLast,
   ) {
-    final assigned =
-        projects.where((p) => p.assignedWorkerId == worker.id).toList();
-    final inProgress = assigned
+    final workerProjects = provider.projects
+        .where((p) => p.isAssignedTo(worker.id))
+        .toList();
+    final inProgress = workerProjects
         .where((p) => p.status == ProjectStatus.inProgress)
         .length;
+    final load = AssignmentRules.activeLoad(
+      worker.id,
+      projects: provider.projects,
+    );
     final stripe = index.isEven
         ? AppColors.surface
         : AppColors.background.withValues(alpha: 0.5);
@@ -188,8 +198,13 @@ class _WorkersViewState extends State<WorkersView> {
                 last: i == columns.length - 1,
                 bottom: !isLast,
                 end: true,
-                child:
-                    _cellFor(worker, columns[i], assigned.length, inProgress),
+                child: _cellFor(
+                  worker,
+                  columns[i],
+                  workerProjects.length,
+                  inProgress,
+                  load,
+                ),
               ),
           ],
         ),
@@ -197,17 +212,44 @@ class _WorkersViewState extends State<WorkersView> {
     );
   }
 
-  Widget _cellFor(User worker, _WCol c, int assigned, int inProgress) =>
+  Widget _cellFor(
+    User worker,
+    _WCol c,
+    int assignedProjects,
+    int inProgress,
+    int load,
+  ) =>
       switch (c) {
-        _WCol.name => Text(
-            worker.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
+        _WCol.name => Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                worker.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Text(
+                '$assignedProjects ${assignedProjects == 1 ? 'project' : 'projects'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        _WCol.type => _pill(
+            worker.workerTypeLabel,
+            worker.workerType == WorkerType.cad
+                ? AppColors.accepted
+                : AppColors.primary,
           ),
         _WCol.email => _plainText(worker.email),
         _WCol.phone => _plainText(
@@ -215,8 +257,8 @@ class _WorkersViewState extends State<WorkersView> {
                 ? '—'
                 : worker.phone!,
           ),
-        _WCol.assigned => Text(
-            '$assigned',
+        _WCol.load => Text(
+            _loadLabel(worker, load),
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -233,8 +275,18 @@ class _WorkersViewState extends State<WorkersView> {
                   : AppColors.textSecondary,
             ),
           ),
-        _WCol.status => _pill('Active', AppColors.completed),
+        _WCol.availability => _pill(
+            worker.availabilityLabel,
+            worker.availability == WorkAvailability.inOffice
+                ? AppColors.completed
+                : AppColors.onHold,
+          ),
       };
+
+  String _loadLabel(User worker, int active) {
+    final max = AssignmentRules.maxProjects(worker);
+    return max == null ? '$active / ∞' : '$active / $max';
+  }
 
   Widget _gridCell({
     double? width,

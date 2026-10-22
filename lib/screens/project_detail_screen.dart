@@ -3,12 +3,14 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+
 import '../models/project.dart';
 import '../providers/project_provider.dart';
+import '../router/app_router.dart';
 import '../theme/app_theme.dart';
+import '../utils/currency.dart';
 import '../utils/status_extensions.dart';
 import '../widgets/status_chip.dart';
-import '../router/app_router.dart';
 
 class ProjectDetailScreen extends StatefulWidget {
   final String id;
@@ -22,11 +24,7 @@ class ProjectDetailScreen extends StatefulWidget {
 class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   late Project _project;
 
-  Project? _lookup() {
-    final projects = context.watch<ProjectProvider>().projects;
-    final index = projects.indexWhere((p) => p.id == widget.id);
-    return index == -1 ? null : projects[index];
-  }
+  Project? _lookup() => context.watch<ProjectProvider>().projectById(widget.id);
 
   void _goBack() {
     if (context.canPop()) {
@@ -48,9 +46,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -58,16 +56,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Project _copyWith(Project project, {ProjectStatus? status}) {
     return Project(
       id: project.id,
+      number: project.number,
       name: project.name,
+      offeringId: project.offeringId,
       owner: project.owner,
       address: project.address,
       latitude: project.latitude,
       longitude: project.longitude,
       status: status ?? project.status,
-      paidStatus: project.paidStatus,
+      startDate: project.startDate,
+      endDate: project.endDate,
+      budgetAmount: project.budgetAmount,
+      progressPercentage: project.progressPercentage,
       tools: project.tools,
-      assignedWorkerId: project.assignedWorkerId,
-      assignedWorkerName: project.assignedWorkerName,
+      assignedWorkerIds: project.assignedWorkerIds,
+      assignedWorkerNames: project.assignedWorkerNames,
     );
   }
 
@@ -76,12 +79,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final project = _lookup();
     if (project == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Offering')),
+        appBar: AppBar(title: const Text('Project')),
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(32),
             child: Text(
-              'Offering not found.',
+              'Project not found.',
               style: TextStyle(color: AppColors.textSecondary),
             ),
           ),
@@ -98,14 +101,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             SliverToBoxAdapter(child: _hero()),
             SliverPersistentHeader(
               pinned: true,
-              delegate: _TabBarDelegate(
+              delegate: _ProjectTabBarDelegate(
                 TabBar(
                   isScrollable: true,
                   tabAlignment: TabAlignment.start,
                   tabs: const [
                     Tab(text: 'Details'),
                     Tab(text: 'Location'),
-                    Tab(text: 'Payment'),
+                    Tab(text: 'Progress'),
                     Tab(text: 'Actions'),
                   ],
                 ),
@@ -116,7 +119,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             children: [
               _detailsTab(),
               _locationTab(),
-              _paymentTab(),
+              _progressTab(),
               _actionsTab(),
             ],
           ),
@@ -151,13 +154,19 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.eco, color: Colors.white, size: 16),
-                        SizedBox(width: 6),
+                        const Icon(
+                          Icons.folder_open_outlined,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
                         Text(
-                          'PROJECT',
-                          style: TextStyle(
+                          _project.number.isEmpty
+                              ? 'PROJECT'
+                              : 'PROJECT ${_project.number}',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -177,20 +186,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        StatusChip(
-                          label: _project.status.label,
-                          color: Colors.white,
-                        ),
-                        StatusChip(
-                          label: _project.paidStatus.label,
-                          color: Colors.white,
-                          icon: Icons.payments_outlined,
-                        ),
-                      ],
+                    StatusChip(
+                      label: _project.status.label,
+                      color: Colors.white,
                     ),
                   ],
                 ),
@@ -202,85 +200,93 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
+  String _date(DateTime? value) => value == null
+      ? '—'
+      : '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+  String get _budget => formatRupiah(_project.budgetAmount);
+
   Widget _detailsTab() {
+    final provider = context.read<ProjectProvider>();
+    final offering = provider.offeringById(_project.offeringId);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _sectionCard(
-          title: 'Site Information',
+          title: 'Project Information',
           children: [
-            _infoRow(Icons.apartment, 'Owner', _project.owner),
+            _infoRow(Icons.tag, 'Project No', _project.number),
+            _infoRow(Icons.apartment, 'Client', _project.owner),
             _infoRow(Icons.place_outlined, 'Address', _project.address),
-            if (_project.assignedWorkerName != null)
-              _infoRow(Icons.engineering_outlined, 'Assigned to',
-                  _project.assignedWorkerName!),
+            if (_project.assignedWorkerNames.isNotEmpty)
+              _infoRow(
+                Icons.groups_outlined,
+                'Field team (${_project.assignedWorkerNames.length})',
+                _project.assignedWorkerNames.join(', '),
+              ),
           ],
         ),
         const SizedBox(height: 16),
         _sectionCard(
-          title: 'Tools',
-          children: _project.tools.isEmpty
+          title: 'Source Offering',
+          children: offering == null
               ? [
-                  const Text(
-                    'No tools recorded for this offering.',
-                    style: TextStyle(
+                  Text(
+                    _project.offeringId,
+                    style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
                   ),
                 ]
               : [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _project.tools
-                        .map(
-                          (tool) => Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 7),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color:
-                                    AppColors.primary.withValues(alpha: 0.2),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.handyman_outlined,
-                                    size: 14, color: AppColors.primary),
-                                const SizedBox(width: 6),
-                                Text(
-                                  tool,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                        .toList(),
+                  _infoRow(
+                    Icons.description_outlined,
+                    'Offering',
+                    '${offering.number} · ${offering.name}',
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          context.push(AppRouter.offeringDetail(offering.id)),
+                      icon: const Icon(Icons.open_in_new, size: 18),
+                      label: const Text('Open Offering'),
+                    ),
                   ),
                 ],
+        ),
+        const SizedBox(height: 16),
+        _sectionCard(
+          title: 'Schedule & Budget',
+          children: [
+            _infoRow(
+              Icons.event_outlined,
+              'Start Date',
+              _date(_project.startDate),
+            ),
+            _infoRow(
+              Icons.event_available_outlined,
+              'End Date',
+              _date(_project.endDate),
+            ),
+            _infoRow(Icons.payments_outlined, 'Budget', _budget),
+          ],
         ),
       ],
     );
   }
 
   Widget _locationTab() {
-    final hasLocation =
-        _project.latitude != null && _project.longitude != null;
+    final hasLocation = _project.latitude != null && _project.longitude != null;
     if (!hasLocation) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(32),
           child: Text(
-            'No coordinates recorded for this offering.',
+            'No coordinates recorded for this project.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
@@ -294,10 +300,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         _sectionCard(
           title: 'Coordinates',
           children: [
-            _infoRow(Icons.my_location, 'Latitude',
-                _project.latitude!.toStringAsFixed(5)),
-            _infoRow(Icons.explore_outlined, 'Longitude',
-                _project.longitude!.toStringAsFixed(5)),
+            _infoRow(
+              Icons.my_location,
+              'Latitude',
+              _project.latitude!.toStringAsFixed(5),
+            ),
+            _infoRow(
+              Icons.explore_outlined,
+              'Longitude',
+              _project.longitude!.toStringAsFixed(5),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -306,14 +318,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           child: SizedBox(
             height: 300,
             child: FlutterMap(
-              options: MapOptions(
-                initialCenter: point,
-                initialZoom: 13,
-              ),
+              options: MapOptions(initialCenter: point, initialZoom: 13),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.geoterra_monitoring',
                 ),
                 MarkerLayer(
@@ -338,7 +346,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget _paymentTab() {
+  Widget _progressTab() {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -347,33 +355,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: _project.paidStatus.color.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.account_balance_wallet_outlined,
-                    color: _project.paidStatus.color,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(height: 14),
                 Text(
-                  _project.paidStatus.label,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: _project.paidStatus.color,
+                  '${_project.progressPercentage}%',
+                  style: const TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Current payment status',
+                  'Overall progress',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: _project.progressPercentage / 100,
+                    minHeight: 10,
+                    backgroundColor: AppColors.border,
+                    valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                   ),
                 ),
               ],
@@ -381,14 +386,40 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        _sectionCard(
-          title: 'Billing Summary',
-          children: [
-            _infoRow(Icons.receipt_long_outlined, 'Offering', _project.name),
-            _infoRow(Icons.person_outline, 'Billed to', _project.owner),
-            _infoRow(Icons.circle, 'Status', _project.paidStatus.label),
-          ],
-        ),
+        if (_project.tools.isNotEmpty)
+          _sectionCard(
+            title: 'Tools',
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final tool in _project.tools)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Text(
+                        tool,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -397,24 +428,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (_project.status == ProjectStatus.pending) ...[
-          SizedBox(
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: () => _updateStatus(ProjectStatus.inProgress),
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Start Work'),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
         _sectionCard(
           title: 'Update Status',
           children: [
             _statusOption(
+              ProjectStatus.planning,
+              Icons.event_note_outlined,
+              'Planning',
+            ),
+            _statusOption(
               ProjectStatus.inProgress,
               Icons.autorenew,
               'Mark as In Progress',
+            ),
+            _statusOption(
+              ProjectStatus.onHold,
+              Icons.pause_circle_outline,
+              'Put On Hold',
             ),
             _statusOption(
               ProjectStatus.completed,
@@ -422,9 +452,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               'Mark as Completed',
             ),
             _statusOption(
-              ProjectStatus.onHold,
-              Icons.pause_circle_outline,
-              'Put On Hold',
+              ProjectStatus.cancelled,
+              Icons.cancel_outlined,
+              'Cancel Project',
             ),
           ],
         ),
@@ -541,10 +571,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 }
 
-class _TabBarDelegate extends SliverPersistentHeaderDelegate {
+class _ProjectTabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabBar tabBar;
 
-  _TabBarDelegate(this.tabBar);
+  _ProjectTabBarDelegate(this.tabBar);
 
   @override
   double get minExtent => tabBar.preferredSize.height + 0.5;
@@ -554,18 +584,16 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return Container(
       color: AppColors.surface,
-      child: Column(
-        children: [
-          tabBar,
-          const Divider(height: 1),
-        ],
-      ),
+      child: Column(children: [tabBar, const Divider(height: 1)]),
     );
   }
 
   @override
-  bool shouldRebuild(_TabBarDelegate oldDelegate) => false;
+  bool shouldRebuild(_ProjectTabBarDelegate oldDelegate) => false;
 }

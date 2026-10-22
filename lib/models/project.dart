@@ -1,77 +1,121 @@
-enum ProjectStatus { pending, inProgress, completed, onHold }
+enum ProjectStatus { planning, inProgress, onHold, completed, cancelled }
 
-enum PaidStatus { unpaid, partiallyPaid, paid }
-
+/// The execution side of an accepted [Offering]. A project can only be
+/// created once its offering is accepted, and it links back via [offeringId].
 class Project {
   final String id;
+  final String number;
   final String name;
+  final String offeringId;
   final String owner;
   final String address;
   final double? latitude;
   final double? longitude;
   final ProjectStatus status;
-  final PaidStatus paidStatus;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final double? budgetAmount;
+  final int progressPercentage;
   final List<String> tools;
-  final String? assignedWorkerId;
-  final String? assignedWorkerName;
+
+  /// The field team assigned to this project. A project can have several
+  /// workers, including both field workers and CAD specialists.
+  final List<String> assignedWorkerIds;
+  final List<String> assignedWorkerNames;
 
   Project({
     required this.id,
+    this.number = '',
     required this.name,
+    required this.offeringId,
     required this.owner,
     required this.address,
     this.latitude,
     this.longitude,
-    this.status = ProjectStatus.pending,
-    this.paidStatus = PaidStatus.unpaid,
+    this.status = ProjectStatus.planning,
+    this.startDate,
+    this.endDate,
+    this.budgetAmount,
+    this.progressPercentage = 0,
     this.tools = const [],
-    this.assignedWorkerId,
-    this.assignedWorkerName,
+    this.assignedWorkerIds = const [],
+    this.assignedWorkerNames = const [],
   });
 
+  bool isAssignedTo(String workerId) => assignedWorkerIds.contains(workerId);
+
   factory Project.fromJson(Map<String, dynamic> json) {
+    final ids = json['assignedWorkerIds'];
+    final names = json['assignedWorkerNames'];
+    final legacyId = json['assignedWorkerId'];
+    final legacyName = json['assignedWorkerName'];
     return Project(
       id: json['id'] ?? '',
+      number: json['number'] ?? '',
       name: json['name'] ?? '',
+      offeringId: json['offeringId'] ?? '',
       owner: json['owner'] ?? '',
       address: json['address'] ?? '',
       latitude: json['latitude']?.toDouble(),
       longitude: json['longitude']?.toDouble(),
-      status: _statusFromString(json['status'] ?? 'pending'),
-      paidStatus: _paidStatusFromString(json['paidStatus'] ?? 'unpaid'),
+      status: _statusFromString(json['status'] ?? 'planning'),
+      startDate: _dateFromString(json['startDate']),
+      endDate: _dateFromString(json['endDate']),
+      budgetAmount: (json['budgetAmount'] as num?)?.toDouble(),
+      progressPercentage: (json['progressPercentage'] as num?)?.toInt() ?? 0,
       tools: List<String>.from(json['tools'] ?? []),
-      assignedWorkerId: json['assignedWorkerId'],
-      assignedWorkerName: json['assignedWorkerName'],
+      assignedWorkerIds: ids is List
+          ? List<String>.from(ids)
+          : legacyId is String && legacyId.isNotEmpty
+              ? [legacyId]
+              : const [],
+      assignedWorkerNames: names is List
+          ? List<String>.from(names)
+          : legacyName is String && legacyName.isNotEmpty
+              ? [legacyName]
+              : const [],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'number': number,
       'name': name,
+      'offeringId': offeringId,
       'owner': owner,
       'address': address,
       'latitude': latitude,
       'longitude': longitude,
       'status': _statusToString(status),
-      'paidStatus': _paidStatusToString(paidStatus),
+      'startDate': startDate?.toIso8601String(),
+      'endDate': endDate?.toIso8601String(),
+      'budgetAmount': budgetAmount,
+      'progressPercentage': progressPercentage,
       'tools': tools,
-      'assignedWorkerId': assignedWorkerId,
-      'assignedWorkerName': assignedWorkerName,
+      'assignedWorkerIds': assignedWorkerIds,
+      'assignedWorkerNames': assignedWorkerNames,
     };
+  }
+
+  static DateTime? _dateFromString(Object? value) {
+    if (value is! String || value.isEmpty) return null;
+    return DateTime.tryParse(value);
   }
 
   static ProjectStatus _statusFromString(String status) {
     switch (status) {
       case 'inProgress':
         return ProjectStatus.inProgress;
-      case 'completed':
-        return ProjectStatus.completed;
       case 'onHold':
         return ProjectStatus.onHold;
-      case 'pending':
+      case 'completed':
+        return ProjectStatus.completed;
+      case 'cancelled':
+        return ProjectStatus.cancelled;
+      case 'planning':
       default:
-        return ProjectStatus.pending;
+        return ProjectStatus.planning;
     }
   }
 
@@ -79,35 +123,14 @@ class Project {
     switch (status) {
       case ProjectStatus.inProgress:
         return 'inProgress';
-      case ProjectStatus.completed:
-        return 'completed';
       case ProjectStatus.onHold:
         return 'onHold';
-      case ProjectStatus.pending:
-        return 'pending';
-    }
-  }
-
-  static PaidStatus _paidStatusFromString(String status) {
-    switch (status) {
-      case 'partiallyPaid':
-        return PaidStatus.partiallyPaid;
-      case 'paid':
-        return PaidStatus.paid;
-      case 'unpaid':
-      default:
-        return PaidStatus.unpaid;
-    }
-  }
-
-  static String _paidStatusToString(PaidStatus status) {
-    switch (status) {
-      case PaidStatus.partiallyPaid:
-        return 'partiallyPaid';
-      case PaidStatus.paid:
-        return 'paid';
-      case PaidStatus.unpaid:
-        return 'unpaid';
+      case ProjectStatus.completed:
+        return 'completed';
+      case ProjectStatus.cancelled:
+        return 'cancelled';
+      case ProjectStatus.planning:
+        return 'planning';
     }
   }
 }

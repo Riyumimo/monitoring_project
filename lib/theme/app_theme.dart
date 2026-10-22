@@ -13,6 +13,7 @@ class AppColors {
   static const Color border = Color(0xFFE4EAE4);
 
   static const Color pending = Color(0xFFF59E0B);
+  static const Color accepted = Color(0xFF0EA5E9);
   static const Color inProgress = Color(0xFF3B82F6);
   static const Color completed = Color(0xFF16A34A);
   static const Color onHold = Color(0xFFEF4444);

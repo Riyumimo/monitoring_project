@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../models/offering.dart';
 import '../models/project.dart';
 import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
 import '../theme/app_theme.dart';
-import '../widgets/project_card.dart';
-import '../widgets/project_map_split.dart';
+import '../widgets/offering_card.dart';
+import '../widgets/offering_map_split.dart';
 import '../widgets/stat_card.dart';
 import '../router/app_router.dart';
 
@@ -31,26 +32,52 @@ class _DashboardPageState extends State<DashboardPage> {
 
   bool get _isManager => context.read<AuthProvider>().userRole == 'Manager';
 
-  List<Project> _visibleProjects(List<Project> all) {
+  List<Offering> _visibleOfferings(List<Offering> all) {
     if (!_isManager) {
       final userId = context.read<AuthProvider>().user?.id;
-      return all.where((p) => p.assignedWorkerId == userId).toList();
+      final provider = context.read<ProjectProvider>();
+      return all.where((o) {
+        final projectId = o.projectId;
+        if (projectId == null || userId == null) return false;
+        return provider.projectById(projectId)?.isAssignedTo(userId) ?? false;
+      }).toList();
     }
     return all;
   }
 
-  void _openProject(Project project) =>
-      context.push(AppRouter.projectDetail(project.id));
+  void _openOffering(Offering offering) =>
+      context.push(AppRouter.offeringDetail(offering.id));
 
-  void _editProject(Project project) =>
-      context.push(AppRouter.projectEdit(project.id));
+  void _editOffering(Offering offering) =>
+      context.push(AppRouter.offeringEdit(offering.id));
 
-  Future<void> _deleteProject(Project project) async {
+  void _openProject(Offering offering) {
+    if (offering.isRentalService) {
+      context.push(AppRouter.offeringDetail(offering.id, tab: 3));
+      return;
+    }
+    final projectId = offering.projectId;
+    if (projectId != null) {
+      context.push(AppRouter.projectDetail(projectId));
+      return;
+    }
+    if (offering.status == OfferingStatus.accepted) {
+      context.push(AppRouter.newProject(offering.id));
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Accept the offering to create its project'),
+      ),
+    );
+  }
+
+  Future<void> _deleteOffering(Offering offering) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete offering'),
-        content: Text('Remove "${project.name}"? This cannot be undone.'),
+        content: Text('Remove "${offering.name}"? This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -66,12 +93,12 @@ class _DashboardPageState extends State<DashboardPage> {
     );
     if (confirmed != true || !mounted) return;
 
-    await context.read<ProjectProvider>().deleteProject(project.id);
+    await context.read<ProjectProvider>().deleteOffering(offering.id);
     if (mounted) {
-      if (_selectedId == project.id) setState(() => _selectedId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Offering deleted')),
-      );
+      if (_selectedId == offering.id) setState(() => _selectedId = null);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Offering deleted')));
     }
   }
 
@@ -81,44 +108,70 @@ class _DashboardPageState extends State<DashboardPage> {
     if (provider.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    final projects = _visibleProjects(provider.projects);
+    final offerings = _visibleOfferings(provider.offerings);
 
-    return ProjectMapSplit(
-      projects: projects,
+    return OfferingMapSplit(
+      offerings: offerings,
       selectedId: _selectedId,
-      onSelect: (project) => setState(() => _selectedId = project.id),
-      leftPanel: _isManager ? _managerPanel(projects) : _workerPanel(projects),
+      onSelect: (offering) => setState(() => _selectedId = offering.id),
+      leftPanel: _isManager
+          ? _managerPanel(offerings)
+          : _workerPanel(offerings),
     );
   }
 
-  Widget _managerPanel(List<Project> projects) {
-    final all = context.read<ProjectProvider>().projects;
-    final inProgress =
-        all.where((p) => p.status == ProjectStatus.inProgress).length;
-    final completed =
-        all.where((p) => p.status == ProjectStatus.completed).length;
-    final unpaid = all.where((p) => p.paidStatus != PaidStatus.paid).length;
+  Widget _managerPanel(List<Offering> offerings) {
+    final provider = context.read<ProjectProvider>();
+    final all = provider.offerings;
+    final accepted = all
+        .where((o) => o.status == OfferingStatus.accepted)
+        .length;
+    final pending = all
+        .where(
+          (o) =>
+              o.status == OfferingStatus.draft ||
+              o.status == OfferingStatus.sent,
+        )
+        .length;
+    final activeProjects = provider.projects
+        .where(
+          (p) =>
+              p.status == ProjectStatus.planning ||
+              p.status == ProjectStatus.inProgress,
+        )
+        .length;
 
     return _panel(
       stats: [
-        _stat('${all.length}', 'Total Offerings', Icons.folder_outlined,
-            AppColors.primary),
-        _stat('$inProgress', 'In Progress', Icons.autorenew,
-            AppColors.inProgress),
-        _stat('$completed', 'Completed', Icons.check_circle_outline,
-            AppColors.completed),
-        _stat('$unpaid', 'Unpaid / Partial', Icons.payments_outlined,
-            AppColors.pending),
+        _stat(
+          '${all.length}',
+          'Total Offerings',
+          Icons.folder_outlined,
+          AppColors.primary,
+        ),
+        _stat(
+          '$accepted',
+          'Accepted',
+          Icons.thumb_up_alt_outlined,
+          AppColors.accepted,
+        ),
+        _stat('$pending', 'Pending', Icons.hourglass_empty, AppColors.pending),
+        _stat(
+          '$activeProjects',
+          'Active Projects',
+          Icons.construction,
+          AppColors.inProgress,
+        ),
       ],
       title: 'Offerings',
-      projects: projects,
+      offerings: offerings,
       emptyTitle: 'No offerings found',
       emptySubtitle: 'Add a new offering to get started.',
       emptyIcon: Icons.folder_off_outlined,
-      itemBuilder: (project) => ProjectCard(
-        project: project,
-        selected: project.id == _selectedId,
-        onTap: () => setState(() => _selectedId = project.id),
+      itemBuilder: (offering) => OfferingCard(
+        offering: offering,
+        selected: offering.id == _selectedId,
+        onTap: () => setState(() => _selectedId = offering.id),
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
           shape: RoundedRectangleBorder(
@@ -126,15 +179,19 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           onSelected: (value) {
             if (value == 'details') {
-              _openProject(project);
+              _openOffering(offering);
             } else if (value == 'edit') {
-              _editProject(project);
+              _editOffering(offering);
+            } else if (value == 'project') {
+              _openProject(offering);
+            } else if (value == 'rental') {
+              context.push(AppRouter.offeringDetail(offering.id, tab: 3));
             } else if (value == 'delete') {
-              _deleteProject(project);
+              _deleteOffering(offering);
             }
           },
-          itemBuilder: (_) => const [
-            PopupMenuItem(
+          itemBuilder: (_) => [
+            const PopupMenuItem(
               value: 'details',
               child: Row(
                 children: [
@@ -144,7 +201,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
             ),
-            PopupMenuItem(
+            const PopupMenuItem(
               value: 'edit',
               child: Row(
                 children: [
@@ -154,7 +211,38 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
             ),
-            PopupMenuItem(
+            if (offering.isRentalService)
+              const PopupMenuItem(
+                value: 'rental',
+                child: Row(
+                  children: [
+                    Icon(Icons.event_outlined, size: 18),
+                    SizedBox(width: 10),
+                    Text('Rental Details'),
+                  ],
+                ),
+              )
+            else
+              PopupMenuItem(
+                value: 'project',
+                child: Row(
+                  children: [
+                    Icon(
+                      offering.projectId != null
+                          ? Icons.folder_open_outlined
+                          : Icons.rocket_launch_outlined,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      offering.projectId != null
+                          ? 'Open Project'
+                          : 'Create Project',
+                    ),
+                  ],
+                ),
+              ),
+            const PopupMenuItem(
               value: 'delete',
               child: Row(
                 children: [
@@ -170,41 +258,61 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _workerPanel(List<Project> assigned) {
-    final inProgress = assigned
-        .where((p) => p.status == ProjectStatus.inProgress)
+  Widget _workerPanel(List<Offering> assigned) {
+    final provider = context.read<ProjectProvider>();
+    final myProjects = provider.projects
+        .where((p) => assigned.any((o) => o.projectId == p.id))
+        .toList();
+    final accepted = assigned
+        .where((o) => o.status == OfferingStatus.accepted)
         .length;
-    final completed =
-        assigned.where((p) => p.status == ProjectStatus.completed).length;
-    final paid =
-        assigned.where((p) => p.paidStatus == PaidStatus.paid).length;
+    final active = myProjects
+        .where(
+          (p) =>
+              p.status == ProjectStatus.planning ||
+              p.status == ProjectStatus.inProgress,
+        )
+        .length;
+    final paid = assigned.where((o) => o.paidStatus == PaidStatus.paid).length;
 
     return _panel(
       stats: [
-        _stat('${assigned.length}', 'Assigned to me', Icons.assignment_outlined,
-            AppColors.primary),
-        _stat('$inProgress', 'In Progress', Icons.autorenew,
-            AppColors.inProgress),
-        _stat('$completed', 'Completed', Icons.check_circle_outline,
-            AppColors.completed),
+        _stat(
+          '${assigned.length}',
+          'Assigned to me',
+          Icons.assignment_outlined,
+          AppColors.primary,
+        ),
+        _stat(
+          '$accepted',
+          'Accepted',
+          Icons.thumb_up_alt_outlined,
+          AppColors.accepted,
+        ),
+        _stat(
+          '$active',
+          'Active Projects',
+          Icons.construction,
+          AppColors.inProgress,
+        ),
         _stat('$paid', 'Paid', Icons.verified_outlined, AppColors.paid),
       ],
       title: 'My Tasks',
-      projects: assigned,
+      offerings: assigned,
       emptyTitle: 'No offerings assigned',
       emptySubtitle: 'New assignments will appear here.',
       emptyIcon: Icons.assignment_outlined,
-      itemBuilder: (project) => ProjectCard(
-        project: project,
-        selected: project.id == _selectedId,
-        onTap: () => setState(() => _selectedId = project.id),
+      itemBuilder: (offering) => OfferingCard(
+        offering: offering,
+        selected: offering.id == _selectedId,
+        onTap: () => setState(() => _selectedId = offering.id),
         trailing: IconButton(
           icon: const Icon(
             Icons.arrow_forward_ios,
             size: 16,
             color: AppColors.textSecondary,
           ),
-          onPressed: () => _openProject(project),
+          onPressed: () => _openOffering(offering),
         ),
       ),
     );
@@ -213,11 +321,11 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _panel({
     required List<Widget> stats,
     required String title,
-    required List<Project> projects,
+    required List<Offering> offerings,
     required String emptyTitle,
     required String emptySubtitle,
     required IconData emptyIcon,
-    required Widget Function(Project) itemBuilder,
+    required Widget Function(Offering) itemBuilder,
   }) {
     return Container(
       color: AppColors.background,
@@ -251,13 +359,13 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
             const SizedBox(height: 4),
-            if (projects.isEmpty)
+            if (offerings.isEmpty)
               _emptyState(emptyIcon, emptyTitle, emptySubtitle)
             else
-              ...projects.map(
-                (project) => Padding(
+              ...offerings.map(
+                (offering) => Padding(
                   padding: const EdgeInsets.only(bottom: 14),
-                  child: itemBuilder(project),
+                  child: itemBuilder(offering),
                 ),
               ),
           ],
@@ -276,8 +384,11 @@ class _DashboardPageState extends State<DashboardPage> {
       alignment: Alignment.center,
       child: Column(
         children: [
-          Icon(icon,
-              size: 48, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+          Icon(
+            icon,
+            size: 48,
+            color: AppColors.textSecondary.withValues(alpha: 0.6),
+          ),
           const SizedBox(height: 12),
           Text(
             title,

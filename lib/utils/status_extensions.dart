@@ -1,30 +1,68 @@
 import 'package:flutter/material.dart';
+
+import '../models/offering.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
 
-extension ProjectStatusX on ProjectStatus {
+extension OfferingStatusX on OfferingStatus {
   String get label {
     switch (this) {
-      case ProjectStatus.pending:
-        return 'Pending';
-      case ProjectStatus.inProgress:
-        return 'In Progress';
-      case ProjectStatus.completed:
-        return 'Completed';
-      case ProjectStatus.onHold:
-        return 'On Hold';
+      case OfferingStatus.draft:
+        return 'Draft';
+      case OfferingStatus.sent:
+        return 'Sent';
+      case OfferingStatus.accepted:
+        return 'Accepted';
+      case OfferingStatus.rejected:
+        return 'Rejected';
+      case OfferingStatus.expired:
+        return 'Expired';
     }
   }
 
   Color get color {
     switch (this) {
-      case ProjectStatus.pending:
+      case OfferingStatus.draft:
+        return AppColors.textSecondary;
+      case OfferingStatus.sent:
+        return AppColors.pending;
+      case OfferingStatus.accepted:
+        return AppColors.accepted;
+      case OfferingStatus.rejected:
+        return AppColors.onHold;
+      case OfferingStatus.expired:
+        return AppColors.textSecondary;
+    }
+  }
+}
+
+extension ProjectStatusX on ProjectStatus {
+  String get label {
+    switch (this) {
+      case ProjectStatus.planning:
+        return 'Planning';
+      case ProjectStatus.inProgress:
+        return 'In Progress';
+      case ProjectStatus.onHold:
+        return 'On Hold';
+      case ProjectStatus.completed:
+        return 'Completed';
+      case ProjectStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case ProjectStatus.planning:
         return AppColors.pending;
       case ProjectStatus.inProgress:
         return AppColors.inProgress;
+      case ProjectStatus.onHold:
+        return AppColors.onHold;
       case ProjectStatus.completed:
         return AppColors.completed;
-      case ProjectStatus.onHold:
+      case ProjectStatus.cancelled:
         return AppColors.onHold;
     }
   }

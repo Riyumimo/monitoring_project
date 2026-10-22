@@ -3,7 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../models/project.dart';
+
+import '../models/offering.dart';
 import '../theme/app_theme.dart';
 import '../utils/status_extensions.dart';
 
@@ -20,29 +21,29 @@ enum MapBasemap {
   final int maxNativeZoom;
 }
 
-class ProjectMap extends StatefulWidget {
-  final List<Project> projects;
+class OfferingMap extends StatefulWidget {
+  final List<Offering> offerings;
   final String? selectedId;
-  final ValueChanged<Project>? onProjectTap;
+  final ValueChanged<Offering>? onOfferingTap;
   final EdgeInsets padding;
 
-  const ProjectMap({
+  const OfferingMap({
     super.key,
-    required this.projects,
+    required this.offerings,
     this.selectedId,
-    this.onProjectTap,
+    this.onOfferingTap,
     this.padding = const EdgeInsets.all(56),
   });
 
-  List<Project> get locatedProjects => projects
-      .where((p) => p.latitude != null && p.longitude != null)
+  List<Offering> get locatedOfferings => offerings
+      .where((o) => o.latitude != null && o.longitude != null)
       .toList();
 
   @override
-  State<ProjectMap> createState() => _ProjectMapState();
+  State<OfferingMap> createState() => _OfferingMapState();
 }
 
-class _ProjectMapState extends State<ProjectMap> {
+class _OfferingMapState extends State<OfferingMap> {
   final MapController _controller = MapController();
   final ValueNotifier<double> _rotation = ValueNotifier(0);
   MapBasemap _basemap = MapBasemap.streets;
@@ -90,16 +91,16 @@ class _ProjectMapState extends State<ProjectMap> {
   }
 
   @override
-  void didUpdateWidget(covariant ProjectMap oldWidget) {
+  void didUpdateWidget(covariant OfferingMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     final id = widget.selectedId;
     if (id != null && id != oldWidget.selectedId) {
-      final located = widget.locatedProjects;
-      final match = located.where((p) => p.id == id);
-      if (match.isNotEmpty && located.isNotEmpty) {
-        final project = match.first;
+      final located = widget.locatedOfferings;
+      final match = located.where((o) => o.id == id);
+      if (match.isNotEmpty) {
+        final offering = match.first;
         _controller.move(
-          LatLng(project.latitude!, project.longitude!),
+          LatLng(offering.latitude!, offering.longitude!),
           14,
         );
       }
@@ -108,13 +109,13 @@ class _ProjectMapState extends State<ProjectMap> {
 
   @override
   Widget build(BuildContext context) {
-    final located = widget.locatedProjects;
+    final located = widget.locatedOfferings;
     if (located.isEmpty) {
       return const _MapEmptyState();
     }
 
     final points =
-        located.map((p) => LatLng(p.latitude!, p.longitude!)).toList();
+        located.map((o) => LatLng(o.latitude!, o.longitude!)).toList();
 
     return Stack(
       children: [
@@ -142,17 +143,17 @@ class _ProjectMapState extends State<ProjectMap> {
             children: [
               ..._baseLayers(),
               MarkerLayer(
-                markers: located.map((project) {
-                  final selected = project.id == widget.selectedId;
+                markers: located.map((offering) {
+                  final selected = offering.id == widget.selectedId;
                   return Marker(
-                    point: LatLng(project.latitude!, project.longitude!),
+                    point: LatLng(offering.latitude!, offering.longitude!),
                     width: selected ? 54 : 46,
                     height: selected ? 68 : 58,
                     child: GestureDetector(
-                      onTap: () => widget.onProjectTap?.call(project),
+                      onTap: () => widget.onOfferingTap?.call(offering),
                       child: MapPin(
                         selected: selected,
-                        status: project.status,
+                        status: offering.status,
                       ),
                     ),
                   );
@@ -196,7 +197,7 @@ class _ProjectMapState extends State<ProjectMap> {
               ),
             ),
             const SizedBox(height: 8),
-            for (final status in ProjectStatus.values)
+            for (final status in OfferingStatus.values)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
@@ -403,20 +404,22 @@ class _ProjectMapState extends State<ProjectMap> {
 
 class MapPin extends StatelessWidget {
   final bool selected;
-  final ProjectStatus status;
+  final OfferingStatus status;
 
   const MapPin({super.key, this.selected = false, required this.status});
 
   IconData get _icon {
     switch (status) {
-      case ProjectStatus.pending:
-        return Icons.hourglass_empty;
-      case ProjectStatus.inProgress:
-        return Icons.construction;
-      case ProjectStatus.completed:
-        return Icons.check;
-      case ProjectStatus.onHold:
-        return Icons.pause;
+      case OfferingStatus.draft:
+        return Icons.edit_note;
+      case OfferingStatus.sent:
+        return Icons.send_outlined;
+      case OfferingStatus.accepted:
+        return Icons.thumb_up_alt_outlined;
+      case OfferingStatus.rejected:
+        return Icons.close;
+      case OfferingStatus.expired:
+        return Icons.history;
     }
   }
 

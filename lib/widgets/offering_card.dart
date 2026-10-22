@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
-import '../models/project.dart';
+
+import '../models/offering.dart';
 import '../theme/app_theme.dart';
 import '../utils/status_extensions.dart';
 import 'status_chip.dart';
 
-class ProjectCard extends StatelessWidget {
-  final Project project;
+class OfferingCard extends StatelessWidget {
+  final Offering offering;
   final VoidCallback? onTap;
   final Widget? trailing;
   final bool selected;
 
-  const ProjectCard({
+  const OfferingCard({
     super.key,
-    required this.project,
+    required this.offering,
     this.onTap,
     this.trailing,
     this.selected = false,
@@ -45,7 +46,7 @@ class ProjectCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          project.name,
+                          offering.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -61,12 +62,15 @@ class ProjectCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.apartment,
-                          size: 15, color: AppColors.textSecondary),
+                      const Icon(
+                        Icons.apartment,
+                        size: 15,
+                        color: AppColors.textSecondary,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          project.owner,
+                          offering.owner,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -80,12 +84,15 @@ class ProjectCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.place_outlined,
-                          size: 15, color: AppColors.textSecondary),
+                      const Icon(
+                        Icons.place_outlined,
+                        size: 15,
+                        color: AppColors.textSecondary,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          project.address,
+                          offering.address,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -102,14 +109,20 @@ class ProjectCard extends StatelessWidget {
                     runSpacing: 8,
                     children: [
                       StatusChip(
-                        label: project.status.label,
-                        color: project.status.color,
+                        label: offering.status.label,
+                        color: offering.status.color,
                       ),
                       StatusChip(
-                        label: project.paidStatus.label,
-                        color: project.paidStatus.color,
+                        label: offering.paidStatus.label,
+                        color: offering.paidStatus.color,
                         icon: Icons.payments_outlined,
                       ),
+                      if (offering.clientHasRecentOffer)
+                        const StatusChip(
+                          label: 'Recent offer',
+                          color: AppColors.pending,
+                          icon: Icons.history,
+                        ),
                     ],
                   ),
                 ],
@@ -143,16 +156,16 @@ class ProjectCard extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.12),
             ),
           ),
-          const Positioned(
+          Positioned(
             left: 16,
             top: 16,
             child: Row(
               children: [
-                Icon(Icons.eco, color: Colors.white, size: 18),
-                SizedBox(width: 6),
+                const Icon(Icons.eco, color: Colors.white, size: 18),
+                const SizedBox(width: 6),
                 Text(
-                  'PROJECT',
-                  style: TextStyle(
+                  offering.number.isEmpty ? 'OFFERING' : offering.number,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -162,12 +175,12 @@ class ProjectCard extends StatelessWidget {
               ],
             ),
           ),
-          if (project.latitude != null && project.longitude != null)
+          if (offering.latitude != null && offering.longitude != null)
             Positioned(
               left: 16,
               bottom: 14,
               child: Text(
-                '${project.latitude!.toStringAsFixed(3)}, ${project.longitude!.toStringAsFixed(3)}',
+                '${offering.latitude!.toStringAsFixed(3)}, ${offering.longitude!.toStringAsFixed(3)}',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 11,

@@ -4,10 +4,11 @@ import '../providers/auth_provider.dart';
 import '../screens/dashboard_page.dart';
 import '../screens/dashboard_shell.dart';
 import '../screens/login_screen.dart';
-import '../screens/map_view_screen.dart';
+import '../screens/offering_detail_screen.dart';
+import '../screens/offering_form_screen.dart';
+import '../screens/offerings_page.dart';
 import '../screens/project_detail_screen.dart';
 import '../screens/project_form_screen.dart';
-import '../screens/projects_page.dart';
 import '../screens/tools_view.dart';
 import '../screens/workers_view.dart';
 
@@ -18,12 +19,16 @@ class AppRouter {
 
   static const String login = '/login';
   static const String dashboard = '/dashboard';
-  static const String projects = '/projects';
+  static const String offerings = '/offerings';
   static const String tools = '/tools';
   static const String workers = '/workers';
-  static const String newProject = '/projects/new';
-  static const String map = '/map';
+  static const String newOffering = '/offerings/new';
 
+  static String offeringDetail(String id, {int tab = 0}) =>
+      tab == 0 ? '/offerings/$id' : '/offerings/$id?tab=$tab';
+  static String offeringEdit(String id) => '/offerings/$id/edit';
+  static String newProject(String offeringId) =>
+      '/offerings/$offeringId/project/new';
   static String projectDetail(String id) => '/projects/$id';
   static String projectEdit(String id) => '/projects/$id/edit';
 
@@ -57,8 +62,8 @@ class AppRouter {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: projects,
-                builder: (context, state) => const ProjectsPage(),
+                path: offerings,
+                builder: (context, state) => const OfferingsPage(),
               ),
             ],
           ),
@@ -80,9 +85,32 @@ class AppRouter {
           ),
         ],
       ),
+      // Offering form (create / edit).
       GoRoute(
-        path: newProject,
-        builder: (context, state) => const ProjectFormScreen(),
+        path: newOffering,
+        builder: (context, state) => const OfferingFormScreen(),
+      ),
+      GoRoute(
+        path: '/offerings/:id',
+        builder: (context, state) {
+          final tab =
+              int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0;
+          return OfferingDetailScreen(
+            id: state.pathParameters['id']!,
+            initialTab: tab.clamp(0, 3),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/offerings/:id/edit',
+        builder: (context, state) =>
+            OfferingFormScreen(offeringId: state.pathParameters['id']),
+      ),
+      // Project form, reachable from an accepted offering.
+      GoRoute(
+        path: '/offerings/:id/project/new',
+        builder: (context, state) =>
+            ProjectFormScreen(offeringId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/projects/:id',
@@ -93,10 +121,6 @@ class AppRouter {
         path: '/projects/:id/edit',
         builder: (context, state) =>
             ProjectFormScreen(projectId: state.pathParameters['id']),
-      ),
-      GoRoute(
-        path: map,
-        builder: (context, state) => const MapViewScreen(),
       ),
     ],
   );

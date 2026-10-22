@@ -42,7 +42,19 @@ class OfferingSidebar extends StatelessWidget {
           children: [
             _brand(),
             const SizedBox(height: 6),
-            for (var i = 0; i < items.length; i++) _navTile(i),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: 12),
+                children: [
+                  for (var i = 0; i < items.length; i++)
+                    _navTile(
+                      items[i],
+                      selected: selectedIndex == i,
+                      onTap: () => onSelect(i),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -111,16 +123,18 @@ class OfferingSidebar extends StatelessWidget {
     );
   }
 
-  Widget _navTile(int index) {
-    final item = items[index];
-    final selected = index == selectedIndex;
+  Widget _navTile(
+    SidebarMenuItem item, {
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: Tooltip(
         message: collapsed ? item.label : '',
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => onSelect(index),
+          onTap: onTap,
           child: Container(
             height: 44,
             padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 12),
