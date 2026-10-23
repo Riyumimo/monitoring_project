@@ -19,7 +19,7 @@ class AssignmentRules {
   /// Maximum number of concurrent engagements a worker may hold, or `null`
   /// when there is no limit.
   static int? maxProjects(User worker) {
-    if (worker.workerType == WorkerType.cad) return null;
+    if (worker.isCad) return null;
     return worker.availability == WorkAvailability.outOfTown
         ? fieldOutOfTownMax
         : fieldInOfficeMax;
@@ -67,7 +67,9 @@ class AssignmentRules {
       projects: projects.where((p) => p.id != ignoreProjectId).toList(),
     );
     final max = maxProjects(worker);
-    if (max == null) return 'CAD • no limit ($load active)';
+    if (max == null) {
+      return '${worker.workerTypesLabel} • no limit ($load active)';
+    }
     return '${worker.availabilityLabel} • $load/$max active';
   }
 
@@ -85,7 +87,7 @@ class AssignmentRules {
       return null;
     }
     final max = maxProjects(worker);
-    if (worker.workerType == WorkerType.field &&
+    if (worker.hasWorkerType(WorkerType.field) &&
         worker.availability == WorkAvailability.outOfTown) {
       return 'Out of town — max $max engagement.';
     }

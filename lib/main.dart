@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/project_provider.dart';
 import 'providers/timeline_provider.dart';
+import 'providers/worker_provider.dart';
 import 'router/app_router.dart';
 import 'services/error_logger.dart';
 import 'theme/app_theme.dart';
@@ -21,8 +22,16 @@ Future<void> main() async {
         ChangeNotifierProvider<ProjectProvider>(
           create: (_) => ProjectProvider(),
         ),
-        ChangeNotifierProvider<TimelineProvider>(
+        ChangeNotifierProvider<WorkerProvider>(create: (_) => WorkerProvider()),
+        ChangeNotifierProxyProvider<WorkerProvider, TimelineProvider>(
           create: (_) => TimelineProvider(),
+          update: (_, workerProvider, timelineProvider) {
+            return timelineProvider!
+              ..syncWorkers(
+                workerProvider.workers,
+                hasLoaded: workerProvider.isLoaded,
+              );
+          },
         ),
       ],
       child: MyApp(auth: auth),

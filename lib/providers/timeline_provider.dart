@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/timeline.dart';
+import '../models/user.dart';
 import '../services/mock_data.dart';
 import '../theme/app_theme.dart';
 
@@ -12,7 +13,7 @@ class TimelineProvider extends ChangeNotifier {
         TimelinePerson(
           id: worker.id,
           name: worker.name,
-          roleLabel: worker.workerTypeLabel,
+          roleLabel: worker.workerTypesLabel,
         ),
     ];
     _tasks = _seedTasks(_people);
@@ -27,8 +28,8 @@ class TimelineProvider extends ChangeNotifier {
     AppColors.onHold,
   ];
 
-  late final List<TimelinePerson> _people;
-  late final List<TimelineTask> _tasks;
+  late List<TimelinePerson> _people;
+  late List<TimelineTask> _tasks;
 
   List<TimelinePerson> get people => List.unmodifiable(_people);
   List<TimelineTask> get tasks => List.unmodifiable(_tasks);
@@ -57,6 +58,36 @@ class TimelineProvider extends ChangeNotifier {
     final before = _tasks.length;
     _tasks.removeWhere((task) => task.id == id);
     if (_tasks.length != before) notifyListeners();
+  }
+
+  /// Keeps the timeline people rows in sync with the worker directory.
+  ///
+  /// Added workers get a new row, renamed workers update in place, and tasks
+  /// belonging to deleted workers are removed.
+  void syncWorkers(List<User> workers, {required bool hasLoaded}) {
+    // Before the worker directory has loaded, keep the seeded timeline intact.
+    if (!hasLoaded && workers.isEmpty) return;
+
+    final people = [
+      for (final worker in workers)
+        TimelinePerson(
+          id: worker.id,
+          name: worker.name,
+          roleLabel: worker.workerTypesLabel,
+        ),
+    ];
+    final ids = {for (final person in people) person.id};
+    final retainedTasks = [
+      for (final task in _tasks)
+        if (ids.contains(task.personId)) task,
+    ];
+
+    _people = people;
+    _tasks = [
+      for (final task in retainedTasks)
+        task.copyWith(color: colorFor(task.personId)),
+    ];
+    notifyListeners();
   }
 
   List<TimelineTask> _seedTasks(List<TimelinePerson> people) {

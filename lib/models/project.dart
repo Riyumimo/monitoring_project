@@ -44,6 +44,44 @@ class Project {
 
   bool isAssignedTo(String workerId) => assignedWorkerIds.contains(workerId);
 
+  Project copyWith({
+    String? id,
+    String? number,
+    String? name,
+    String? offeringId,
+    String? owner,
+    String? address,
+    double? latitude,
+    double? longitude,
+    ProjectStatus? status,
+    DateTime? startDate,
+    DateTime? endDate,
+    double? budgetAmount,
+    int? progressPercentage,
+    List<String>? tools,
+    List<String>? assignedWorkerIds,
+    List<String>? assignedWorkerNames,
+  }) {
+    return Project(
+      id: id ?? this.id,
+      number: number ?? this.number,
+      name: name ?? this.name,
+      offeringId: offeringId ?? this.offeringId,
+      owner: owner ?? this.owner,
+      address: address ?? this.address,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      status: status ?? this.status,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      budgetAmount: budgetAmount ?? this.budgetAmount,
+      progressPercentage: progressPercentage ?? this.progressPercentage,
+      tools: tools ?? this.tools,
+      assignedWorkerIds: assignedWorkerIds ?? this.assignedWorkerIds,
+      assignedWorkerNames: assignedWorkerNames ?? this.assignedWorkerNames,
+    );
+  }
+
   factory Project.fromJson(Map<String, dynamic> json) {
     final ids = json['assignedWorkerIds'];
     final names = json['assignedWorkerNames'];
@@ -67,13 +105,13 @@ class Project {
       assignedWorkerIds: ids is List
           ? List<String>.from(ids)
           : legacyId is String && legacyId.isNotEmpty
-              ? [legacyId]
-              : const [],
+          ? [legacyId]
+          : const [],
       assignedWorkerNames: names is List
           ? List<String>.from(names)
           : legacyName is String && legacyName.isNotEmpty
-              ? [legacyName]
-              : const [],
+          ? [legacyName]
+          : const [],
     );
   }
 

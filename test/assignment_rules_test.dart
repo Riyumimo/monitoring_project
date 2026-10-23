@@ -16,7 +16,7 @@ User _cad() => User(
       name: 'CAD Specialist',
       email: 'cad@geoterra.com',
       role: 'FieldWorker',
-      workerType: WorkerType.cad,
+      workerTypes: const [WorkerType.cad],
     );
 
 Project _project(
@@ -59,6 +59,22 @@ void main() {
     final worker = _cad();
     final many = [for (var i = 0; i < 5; i++) _project('p$i', ['c1'])];
 
+    expect(AssignmentRules.maxProjects(worker), isNull);
+    expect(AssignmentRules.canAssign(worker, projects: many), isTrue);
+  });
+
+  test('a worker with both field and CAD types has no assignment limit', () {
+    final worker = User(
+      id: 'fc1',
+      name: 'Field CAD Worker',
+      email: 'fieldcad@geoterra.com',
+      role: 'FieldWorker',
+      workerTypes: const [WorkerType.field, WorkerType.cad],
+      availability: WorkAvailability.outOfTown,
+    );
+    final many = [for (var i = 0; i < 3; i++) _project('p$i', ['fc1'])];
+
+    expect(worker.workerTypesLabel, 'Field Worker, CAD');
     expect(AssignmentRules.maxProjects(worker), isNull);
     expect(AssignmentRules.canAssign(worker, projects: many), isTrue);
   });

@@ -6,6 +6,7 @@ import '../models/project.dart';
 import '../models/timeline.dart';
 import '../providers/project_provider.dart';
 import '../providers/timeline_provider.dart';
+import '../providers/worker_provider.dart';
 import '../router/app_router.dart';
 import '../theme/app_theme.dart';
 
@@ -36,6 +37,7 @@ class _TimelinePageState extends State<TimelinePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<ProjectProvider>().ensureProjectsLoaded();
+      context.read<WorkerProvider>().ensureWorkersLoaded();
     });
   }
 

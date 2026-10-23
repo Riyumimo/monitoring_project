@@ -129,7 +129,7 @@ class MockData {
           email: 'farah@geoterra.com',
           role: 'FieldWorker',
           phone: '+62 818-5566-7788',
-          workerType: WorkerType.cad,
+          workerTypes: const [WorkerType.cad],
         ),
       ];
 

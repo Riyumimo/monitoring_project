@@ -1,5 +1,13 @@
 /// Field teams are split between general field workers and CAD specialists.
+/// A worker can hold more than one type.
 enum WorkerType { field, cad }
+
+extension WorkerTypeX on WorkerType {
+  String get label => switch (this) {
+    WorkerType.field => 'Field Worker',
+    WorkerType.cad => 'CAD',
+  };
+}
 
 /// Where a worker currently is. Field workers can only take on extra
 /// assignments while they are in office / in town.
@@ -11,7 +19,7 @@ class User {
   final String email;
   final String role; // 'Manager' or 'FieldWorker'
   final String? phone;
-  final WorkerType workerType;
+  final List<WorkerType> workerTypes;
   final WorkAvailability availability;
 
   User({
@@ -20,12 +28,18 @@ class User {
     required this.email,
     required this.role,
     this.phone,
-    this.workerType = WorkerType.field,
+    this.workerTypes = const [WorkerType.field],
     this.availability = WorkAvailability.inOffice,
   });
 
-  String get workerTypeLabel =>
-      workerType == WorkerType.cad ? 'CAD' : 'Field Worker';
+  bool hasWorkerType(WorkerType type) => workerTypes.contains(type);
+
+  bool get isCad => hasWorkerType(WorkerType.cad);
+
+  String get workerTypesLabel {
+    if (workerTypes.isEmpty) return 'No Type';
+    return workerTypes.map((type) => type.label).join(', ');
+  }
 
   String get availabilityLabel =>
       availability == WorkAvailability.inOffice ? 'In Office' : 'Out of Town';
@@ -37,7 +51,7 @@ class User {
       email: json['email'] ?? '',
       role: json['role'] ?? '',
       phone: json['phone'],
-      workerType: _workerTypeFromString(json['workerType'] as String?),
+      workerTypes: _workerTypesFromJson(json),
       availability: _availabilityFromString(json['availability'] as String?),
     );
   }
@@ -49,18 +63,38 @@ class User {
       'email': email,
       'role': role,
       'phone': phone,
-      'workerType': _workerTypeToString(workerType),
+      'workerTypes': [
+        for (final type in workerTypes) _workerTypeToString(type),
+      ],
       'availability': _availabilityToString(availability),
     };
   }
 
-  static WorkerType _workerTypeFromString(String? value) {
+  static List<WorkerType> _workerTypesFromJson(Map<String, dynamic> json) {
+    final values = json['workerTypes'];
+    if (values is List) {
+      final types = <WorkerType>[];
+      for (final value in values) {
+        if (value is! String) continue;
+        final type = _workerTypeFromString(value);
+        if (type != null && !types.contains(type)) types.add(type);
+      }
+      if (types.isNotEmpty) return types;
+    }
+
+    // Backwards compatibility with sessions saved before multi-type workers.
+    final legacy = _workerTypeFromString(json['workerType'] as String?);
+    return [legacy ?? WorkerType.field];
+  }
+
+  static WorkerType? _workerTypeFromString(String? value) {
     switch (value) {
       case 'cad':
         return WorkerType.cad;
       case 'field':
-      default:
         return WorkerType.field;
+      default:
+        return null;
     }
   }
 

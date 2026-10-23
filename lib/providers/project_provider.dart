@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/offering.dart';
 import '../models/project.dart';
+import '../models/user.dart';
 import '../services/mock_data.dart';
 
 /// Holds the in-memory offering and project data used across the app.
@@ -157,5 +158,67 @@ class ProjectProvider extends ChangeNotifier {
     await Future.delayed(const Duration(milliseconds: 200));
     _projects.removeWhere((p) => p.id == id);
     notifyListeners();
+  }
+
+  /// Keeps the field team names on projects in sync after [worker] is edited.
+  void syncWorker(User worker) {
+    var changed = false;
+    final updated = <Project>[];
+    for (final project in _projects) {
+      if (!project.isAssignedTo(worker.id)) {
+        updated.add(project);
+        continue;
+      }
+
+      final index = project.assignedWorkerIds.indexOf(worker.id);
+      final names = [...project.assignedWorkerNames];
+      if (index < names.length) {
+        if (names[index] == worker.name) {
+          updated.add(project);
+          continue;
+        }
+        names[index] = worker.name;
+      } else {
+        while (names.length < index) {
+          names.add('');
+        }
+        names.add(worker.name);
+      }
+
+      updated.add(project.copyWith(assignedWorkerNames: names));
+      changed = true;
+    }
+
+    _projects = updated;
+    if (changed) notifyListeners();
+  }
+
+  /// Removes [workerId] from every project's field team.
+  void removeWorkerFromProjects(String workerId) {
+    var changed = false;
+    final updated = <Project>[];
+    for (final project in _projects) {
+      if (!project.isAssignedTo(workerId)) {
+        updated.add(project);
+        continue;
+      }
+
+      final ids = <String>[];
+      final names = <String>[];
+      for (var i = 0; i < project.assignedWorkerIds.length; i++) {
+        if (project.assignedWorkerIds[i] == workerId) continue;
+        ids.add(project.assignedWorkerIds[i]);
+        if (i < project.assignedWorkerNames.length) {
+          names.add(project.assignedWorkerNames[i]);
+        }
+      }
+      updated.add(
+        project.copyWith(assignedWorkerIds: ids, assignedWorkerNames: names),
+      );
+      changed = true;
+    }
+
+    _projects = updated;
+    if (changed) notifyListeners();
   }
 }

@@ -11,6 +11,7 @@ import '../screens/project_detail_screen.dart';
 import '../screens/project_form_screen.dart';
 import '../screens/timeline_page.dart';
 import '../screens/tools_view.dart';
+import '../screens/worker_form_screen.dart';
 import '../screens/workers_view.dart';
 
 class AppRouter {
@@ -25,6 +26,7 @@ class AppRouter {
   static const String workers = '/workers';
   static const String timeline = '/timeline';
   static const String newOffering = '/offerings/new';
+  static const String newWorker = '/workers/new';
 
   static String offeringDetail(String id, {int tab = 0}) =>
       tab == 0 ? '/offerings/$id' : '/offerings/$id?tab=$tab';
@@ -33,6 +35,7 @@ class AppRouter {
       '/offerings/$offeringId/project/new';
   static String projectDetail(String id) => '/projects/$id';
   static String projectEdit(String id) => '/projects/$id/edit';
+  static String workerEdit(String id) => '/workers/$id/edit';
 
   late final GoRouter router = GoRouter(
     initialLocation: dashboard,
@@ -127,6 +130,16 @@ class AppRouter {
         path: '/projects/:id/edit',
         builder: (context, state) =>
             ProjectFormScreen(projectId: state.pathParameters['id']),
+      ),
+      // Worker form (create / edit).
+      GoRoute(
+        path: newWorker,
+        builder: (context, state) => const WorkerFormScreen(),
+      ),
+      GoRoute(
+        path: '/workers/:id/edit',
+        builder: (context, state) =>
+            WorkerFormScreen(workerId: state.pathParameters['id']),
       ),
     ],
   );

@@ -7,6 +7,7 @@ import '../models/project.dart';
 import '../models/user.dart';
 import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
+import '../providers/worker_provider.dart';
 import '../router/app_router.dart';
 import '../services/assignment_rules.dart';
 import '../services/mock_data.dart';
@@ -55,6 +56,9 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<WorkerProvider>().ensureWorkersLoaded();
+    });
     final projectId = widget.projectId;
     if (projectId != null) {
       final project = context.read<ProjectProvider>().projectById(projectId);
@@ -149,10 +153,10 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   }
 
   List<User> get _selectedWorkers {
-    final byId = {for (final worker in MockData.workers()) worker.id: worker};
+    final provider = context.read<WorkerProvider>();
     return [
       for (final id in _assignedWorkerIds)
-        if (byId[id] != null) byId[id]!,
+        if (provider.workerById(id) != null) provider.workerById(id)!,
     ];
   }
 
@@ -496,7 +500,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
   Widget _assignmentCard() {
     final provider = context.watch<ProjectProvider>();
-    final workers = MockData.workers();
+    final workers = context.watch<WorkerProvider>().workers;
     final count = _assignedWorkerIds.length;
 
     return _sectionCard(
@@ -570,7 +574,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       contentPadding: EdgeInsets.zero,
       dense: true,
       title: Text(
-        '${worker.name} — ${worker.workerTypeLabel}',
+        '${worker.name} — ${worker.workerTypesLabel}',
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           fontSize: 13.5,

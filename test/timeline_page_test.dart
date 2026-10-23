@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geoterra_monitoring/models/project.dart';
 import 'package:geoterra_monitoring/providers/project_provider.dart';
 import 'package:geoterra_monitoring/providers/timeline_provider.dart';
+import 'package:geoterra_monitoring/providers/worker_provider.dart';
 import 'package:geoterra_monitoring/screens/timeline_page.dart';
 import 'package:geoterra_monitoring/theme/app_theme.dart';
 import 'package:provider/provider.dart';
@@ -19,9 +20,15 @@ class _TestProjectProvider extends ProjectProvider {
   Future<void> ensureProjectsLoaded() async {}
 }
 
+class _TestWorkerProvider extends WorkerProvider {
+  @override
+  Future<void> ensureWorkersLoaded() async {}
+}
+
 Widget _app({ProjectProvider? projectProvider}) {
   return MultiProvider(
     providers: [
+      ChangeNotifierProvider<WorkerProvider>(create: (_) => _TestWorkerProvider()),
       ChangeNotifierProvider(create: (_) => TimelineProvider()),
       ChangeNotifierProvider<ProjectProvider>.value(
         value: projectProvider ?? _TestProjectProvider(),
