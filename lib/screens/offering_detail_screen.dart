@@ -1,5 +1,4 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
@@ -8,21 +7,24 @@ import 'package:provider/provider.dart';
 
 import '../models/activity.dart';
 import '../models/offering.dart';
+import '../models/offering_line_item.dart';
 import '../models/payment.dart';
 import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
 import '../router/app_router.dart';
 import '../services/client_directory.dart';
+import '../services/invoice_download.dart';
 import '../services/invoice_pdf.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency.dart';
+import '../utils/offering_line_items.dart';
 import '../utils/status_extensions.dart';
 import '../widgets/status_chip.dart';
 
 /// Offering detail page styled as a responsive management dashboard.
 ///
 /// The offering, client, payment, and project data are real. Contact details
-/// fall back to demo values and the notes/activity feed is demo content until
+/// fall back to demo values and the activity feed is demo content until
 /// those modules are backed by the API.
 class OfferingDetailScreen extends StatefulWidget {
   final String id;
@@ -49,7 +51,6 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
   final MapController _mapController = MapController();
 
   late Offering _offering;
-  late List<_OfferingNote> _notes;
   bool _didInitialScroll = false;
   bool _didEnsureActivities = false;
   bool _downloadingInvoice = false;
@@ -66,35 +67,6 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _notes = [
-      _OfferingNote(
-        title: 'Scope walkthrough completed',
-        category: 'General',
-        program: 'Survey',
-        updated: DateTime(2026, 6, 24, 18, 48),
-        body:
-            'The proposed scope and deliverables were reviewed with the '
-            'client. Field access and reporting expectations are confirmed.',
-      ),
-      _OfferingNote(
-        title: 'Awaiting revised budget',
-        category: 'Client',
-        program: 'Commercial',
-        updated: DateTime(2026, 6, 24, 15, 20),
-        body:
-            'The client requested a small revision to the survey area. An '
-            'updated budget is being prepared before the proposal is re-sent.',
-      ),
-      _OfferingNote(
-        title: 'Equipment availability checked',
-        category: 'Equipment',
-        program: 'Operations',
-        updated: DateTime(2026, 6, 23, 9, 5),
-        body:
-            'GPS receivers and the total station are available for the '
-            'proposed schedule. No equipment conflicts were found.',
-      ),
-    ];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<ProjectProvider>().ensureProjectsLoaded();
     });
@@ -305,17 +277,16 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         client: client,
         payments: payments,
       );
-      final saved = await FilePicker.saveFile(
-        dialogTitle: 'Save invoice',
+      final saved = await saveInvoiceFile(
         fileName: invoicePdfFileName(offering),
         bytes: bytes,
         mimeType: 'application/pdf',
       );
       if (!mounted) return;
-      if (kIsWeb || saved != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invoice PDF downloaded')),
-        );
+      if (saved) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Invoice PDF downloaded')));
       }
     } catch (error) {
       if (!mounted) return;
@@ -402,6 +373,8 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
       status: status ?? offering.status,
       paidStatus: paidStatus ?? offering.paidStatus,
       budgetAmount: offering.budgetAmount,
+      lineItems: offering.lineItems,
+      numberingStyle: offering.numberingStyle,
       amountPaid: amountPaid ?? offering.amountPaid,
       clientHasRecentOffer: offering.clientHasRecentOffer,
       rentalUntil: rentalUntil ?? offering.rentalUntil,
@@ -610,9 +583,19 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 5, child: _actionsCard(offering)),
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _actionsCard(offering),
+                  const SizedBox(height: 20),
+                  _recentActivityCard(offering),
+                ],
+              ),
+            ),
             const SizedBox(width: 24),
-            Expanded(flex: 7, child: _notesCard(offering)),
+            Expanded(flex: 7, child: _descriptionCard(offering)),
           ],
         ),
       ],
@@ -635,7 +618,9 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         const SizedBox(height: 20),
         _actionsCard(offering),
         const SizedBox(height: 20),
-        _notesCard(offering),
+        _recentActivityCard(offering),
+        const SizedBox(height: 20),
+        _descriptionCard(offering),
       ],
     );
   }
@@ -762,6 +747,344 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
                 if (offering.clientHasRecentOffer)
                   _miniPill('Recent offer on file', AppColors.pending),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _descriptionCard(Offering offering) {
+    final items = offering.lineItems;
+    final numbers = lineItemLabels(items, style: offering.numberingStyle);
+    final hasItems = items.isNotEmpty;
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: _Eyebrow('Description of Work')),
+              if (hasItems)
+                _miniPill(
+                  '${items.length} ${items.length == 1 ? 'item' : 'items'}',
+                  AppColors.primary,
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          if (!hasItems)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              decoration: BoxDecoration(
+                color: AppColors.background.withValues(alpha: 0.62),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Text(
+                'No description of work recorded for this offering.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.4,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final useTable = constraints.maxWidth >= 620;
+                return useTable
+                    ? _descriptionTable(items, numbers)
+                    : _descriptionList(items, numbers);
+              },
+            ),
+          const SizedBox(height: 14),
+          _descriptionTotal(offering),
+        ],
+      ),
+    );
+  }
+
+  Widget _descriptionTable(List<OfferingLineItem> items, List<String> numbers) {
+    return Table(
+      columnWidths: const {
+        0: FixedColumnWidth(56),
+        1: FlexColumnWidth(5),
+        2: FixedColumnWidth(60),
+        3: FixedColumnWidth(64),
+        4: FixedColumnWidth(132),
+      },
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      border: TableBorder.all(color: AppColors.border),
+      children: [
+        TableRow(
+          decoration: BoxDecoration(
+            color: AppColors.background.withValues(alpha: 0.72),
+          ),
+          children: const [
+            _DescriptionHeader('NO.', alignment: TextAlign.center),
+            _DescriptionHeader('DESCRIPTION OF WORK'),
+            _DescriptionHeader('QTY', alignment: TextAlign.center),
+            _DescriptionHeader('UNIT', alignment: TextAlign.center),
+            _DescriptionHeader('TOTAL', alignment: TextAlign.right),
+          ],
+        ),
+        for (var index = 0; index < items.length; index++)
+          _descriptionTableRow(items[index], numbers[index]),
+      ],
+    );
+  }
+
+  TableRow _descriptionTableRow(OfferingLineItem item, String number) {
+    final description = item.description.trim().isEmpty
+        ? 'Untitled work item'
+        : item.description.trim();
+
+    return TableRow(
+      children: [
+        _descriptionNumber(number, excluded: item.excludeFromTotal),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+          child: Text(
+            description,
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: item.excludeFromTotal
+                  ? AppColors.inProgress
+                  : AppColors.textPrimary,
+            ),
+          ),
+        ),
+        _descriptionValue(
+          item.qty,
+          alignment: TextAlign.center,
+          excluded: item.excludeFromTotal,
+        ),
+        _descriptionValue(
+          item.uom,
+          alignment: TextAlign.center,
+          excluded: item.excludeFromTotal,
+        ),
+        _descriptionAmount(item),
+      ],
+    );
+  }
+
+  Widget _descriptionNumber(String number, {bool excluded = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+      child: Text(
+        number,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: excluded ? AppColors.inProgress : AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _descriptionValue(
+    String value, {
+    TextAlign alignment = TextAlign.start,
+    bool excluded = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      child: Text(
+        value.trim().isEmpty ? ' ' : value,
+        textAlign: alignment,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: excluded ? AppColors.inProgress : AppColors.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget _descriptionAmount(OfferingLineItem item) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      child: Text(
+        item.amount > 0 ? formatRupiah(item.amount) : ' ',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.right,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: item.excludeFromTotal
+              ? AppColors.inProgress
+              : AppColors.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget _descriptionList(List<OfferingLineItem> items, List<String> numbers) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < items.length; index++)
+            _descriptionListRow(
+              items[index],
+              numbers[index],
+              index,
+              items.length,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _descriptionListRow(
+    OfferingLineItem item,
+    String number,
+    int index,
+    int count,
+  ) {
+    final description = item.description.trim().isEmpty
+        ? 'Untitled work item'
+        : item.description.trim();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+      decoration: BoxDecoration(
+        border: index == count - 1
+            ? null
+            : const Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 38,
+                child: Text(
+                  number,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: item.excludeFromTotal
+                        ? AppColors.inProgress
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: item.excludeFromTotal
+                        ? AppColors.inProgress
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              _descriptionMeta(
+                'Qty',
+                item.qty,
+                excluded: item.excludeFromTotal,
+              ),
+              const SizedBox(width: 14),
+              _descriptionMeta(
+                'Unit',
+                item.uom,
+                excluded: item.excludeFromTotal,
+              ),
+              const Spacer(),
+              Text(
+                item.amount > 0 ? formatRupiah(item.amount) : ' ',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: item.excludeFromTotal
+                      ? AppColors.inProgress
+                      : AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _descriptionMeta(String label, String value, {bool excluded = false}) {
+    final color = excluded ? AppColors.inProgress : AppColors.textSecondary;
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: '$label ',
+            style: TextStyle(fontSize: 10.5, color: color),
+          ),
+          TextSpan(
+            text: value.trim().isEmpty ? ' ' : value,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _descriptionTotal(Offering offering) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Offering budget',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          Text(
+            formatRupiah(offering.budgetAmount),
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -1435,7 +1758,9 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
                     )
                   : const Icon(Icons.download_outlined, size: 17),
               label: Text(
-                _downloadingInvoice ? 'Preparing invoice...' : 'Download Invoice',
+                _downloadingInvoice
+                    ? 'Preparing invoice...'
+                    : 'Download Invoice',
               ),
             ),
           ),
@@ -1607,123 +1932,41 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     );
   }
 
-  Widget _notesCard(Offering offering) {
-    final activities = context
-        .watch<ProjectProvider>()
-        .activitiesFor(offering.id);
+  Widget _recentActivityCard(Offering offering) {
+    final activities = context.watch<ProjectProvider>().activitiesFor(
+      offering.id,
+    );
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Expanded(child: _Eyebrow('Notes & Activity')),
-              TextButton.icon(
-                onPressed: _addNote,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.inProgress,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+              const Expanded(child: _Eyebrow('Recent Activity')),
+              if (activities.isNotEmpty)
+                Text(
+                  '${activities.length}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
                   ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text(
-                  'Add Note',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 6),
           const Divider(height: 1),
-          for (var i = 0; i < _notes.length; i++)
-            _noteItem(_notes[i], isLast: i == _notes.length - 1),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1),
-          ),
-          const _Eyebrow('Recent Activity'),
-          const SizedBox(height: 4),
-          for (var i = 0; i < activities.length; i++)
-            _activityItem(activities[i], isLast: i == activities.length - 1),
-        ],
-      ),
-    );
-  }
-
-  Widget _noteItem(_OfferingNote note, {required bool isLast}) {
-    return Container(
-      padding: EdgeInsets.only(top: 14, bottom: isLast ? 2 : 14),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : const Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      note.title,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      note.category,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+          if (activities.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'No activity recorded yet.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Program: ${note.program}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _noteTimestamp(note.updated),
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 7),
-          Text(
-            note.body,
-            style: const TextStyle(
-              fontSize: 12.5,
-              height: 1.45,
-              color: AppColors.textSecondary,
-            ),
-          ),
+            )
+          else
+            for (var i = 0; i < activities.length; i++)
+              _activityItem(activities[i], isLast: i == activities.length - 1),
         ],
       ),
     );
@@ -1747,11 +1990,7 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
               color: item.type.color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              item.type.icon,
-              size: 16,
-              color: item.type.color,
-            ),
+            child: Icon(item.type.icon, size: 16, color: item.type.color),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1882,18 +2121,6 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     );
   }
 
-  OfferingActivity _noteActivity(_OfferingNote note) {
-    return OfferingActivity(
-      id: 'ACT-${note.updated.microsecondsSinceEpoch}',
-      offeringId: _offering.id,
-      type: ActivityType.note,
-      title: note.title,
-      subtitle: note.body.isEmpty ? 'Note added to this offering' : note.body,
-      occurredAt: note.updated,
-      actor: _actorName,
-    );
-  }
-
   String? get _actorName => context.read<AuthProvider>().user?.name;
 
   String _activityTimestamp(DateTime value) {
@@ -1904,63 +2131,6 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     final suffix = hour24 >= 12 ? 'PM' : 'AM';
     return '${weekdays[value.weekday - 1]} ${value.month}/${value.day} '
         '· $hour:$minute $suffix';
-  }
-
-  Future<void> _addNote() async {
-    final titleController = TextEditingController();
-    final bodyController = TextEditingController();
-
-    final added = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add note'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: bodyController,
-              maxLines: 3,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Note'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-
-    final title = titleController.text.trim();
-    final body = bodyController.text.trim();
-    titleController.dispose();
-    bodyController.dispose();
-
-    if (added != true || !mounted) return;
-    if (title.isEmpty && body.isEmpty) return;
-
-    final note = _OfferingNote(
-      title: title.isEmpty ? 'Untitled note' : title,
-      category: 'General',
-      program: 'Offering',
-      updated: DateTime.now(),
-      body: body,
-    );
-    setState(() => _notes.insert(0, note));
-    await context.read<ProjectProvider>().addActivity(_noteActivity(note));
   }
 
   Widget _initialsAvatar(String name, Color color, {required double size}) {
@@ -2222,16 +2392,6 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     'November',
     'December',
   ][month - 1];
-
-  String _noteTimestamp(DateTime value) {
-    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final hour24 = value.hour;
-    final hour = hour24 % 12 == 0 ? 12 : hour24 % 12;
-    final minute = value.minute.toString().padLeft(2, '0');
-    final suffix = hour24 >= 12 ? 'PM' : 'AM';
-    return 'Updated ${weekdays[value.weekday - 1]} ${value.month}/${value.day} '
-        '$hour:$minute $suffix';
-  }
 
   static const List<OfferingStatus> _statusActions = [
     OfferingStatus.sent,
@@ -2652,6 +2812,32 @@ class _Eyebrow extends StatelessWidget {
   }
 }
 
+class _DescriptionHeader extends StatelessWidget {
+  final String label;
+  final TextAlign alignment;
+
+  const _DescriptionHeader(this.label, {this.alignment = TextAlign.start});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      child: Text(
+        label,
+        textAlign: alignment,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.3,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
 class _MapPlaceholder extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -2729,20 +2915,4 @@ class _MapGridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MapGridPainter oldDelegate) => false;
-}
-
-class _OfferingNote {
-  final String title;
-  final String category;
-  final String program;
-  final DateTime updated;
-  final String body;
-
-  const _OfferingNote({
-    required this.title,
-    required this.category,
-    required this.program,
-    required this.updated,
-    required this.body,
-  });
 }

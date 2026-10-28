@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoterra_monitoring/models/offering.dart';
+import 'package:geoterra_monitoring/models/offering_line_item.dart';
 import 'package:geoterra_monitoring/models/payment.dart';
 import 'package:geoterra_monitoring/services/client_directory.dart';
 import 'package:geoterra_monitoring/services/invoice_pdf.dart';
@@ -54,6 +55,49 @@ void main() {
     expect(ascii.decode(bytes.take(4).toList()), '%PDF');
   });
 
+  test('builds an invoice from the offering description of work', () async {
+    final bytes = await buildOfferingInvoicePdf(
+      offering: Offering(
+        id: 'OFR-ITEMS',
+        number: 'OFR-2026-015',
+        name: 'Itemised Survey',
+        serviceType: 'Topographic Survey',
+        owner: client.name,
+        address: 'Sungai Kapuas, Kalimantan Barat',
+        status: OfferingStatus.accepted,
+        paidStatus: PaidStatus.unpaid,
+        budgetAmount: 30000000,
+        lineItems: const [
+          OfferingLineItem(
+            description: 'Field survey',
+            qty: '1',
+            uom: 'Lot',
+            amount: 30000000,
+          ),
+          OfferingLineItem(
+            description: 'Topographic survey',
+            qty: '120',
+            uom: 'Ha',
+            amount: 20000000,
+            indent: 1,
+          ),
+          OfferingLineItem(
+            description: 'Reporting and deliverables',
+            qty: '1',
+            uom: 'Lot',
+            amount: 10000000,
+            indent: 1,
+          ),
+        ],
+      ),
+      client: client,
+      issuedAt: DateTime(2026, 10, 28),
+    );
+
+    expect(bytes.length, greaterThan(1000));
+    expect(ascii.decode(bytes.take(4).toList()), '%PDF');
+  });
+
   test('builds an invoice when the budget is not set', () async {
     final bytes = await buildOfferingInvoicePdf(
       offering: Offering(
@@ -71,38 +115,41 @@ void main() {
     expect(ascii.decode(bytes.take(4).toList()), '%PDF');
   });
 
-  test('builds a template invoice with PO, tax, bank and custom items', () async {
-    final bytes = await buildOfferingInvoicePdf(
-      offering: offering(),
-      client: client,
-      issuedAt: DateTime(2026, 10, 28),
-      poNumber: '002/SMI/X/2026',
-      poDate: DateTime(2026, 10, 19),
-      taxRate: 0.11,
-      bankName: 'Bank Mandiri',
-      bankAccountNumber: '123-00-4567890-1',
-      bankAccountName: 'PT. GeoTerra Indonesia',
-      items: const [
-        InvoiceLineItem(
-          sn: 'A',
-          description: 'Indirect Cost, mobilization & demobilization',
-          amount: 5000000,
-          emphasized: true,
-        ),
-        InvoiceLineItem(
-          sn: '1',
-          description: 'Topographic Survey - 120 ha',
-          qty: '1',
-          uom: 'Lot',
-          amount: 20000000,
-          indent: 1,
-        ),
-      ],
-    );
+  test(
+    'builds a template invoice with PO, tax, bank and custom items',
+    () async {
+      final bytes = await buildOfferingInvoicePdf(
+        offering: offering(),
+        client: client,
+        issuedAt: DateTime(2026, 10, 28),
+        poNumber: '002/SMI/X/2026',
+        poDate: DateTime(2026, 10, 19),
+        taxRate: 0.11,
+        bankName: 'Bank Mandiri',
+        bankAccountNumber: '123-00-4567890-1',
+        bankAccountName: 'PT. GeoTerra Indonesia',
+        items: const [
+          InvoiceLineItem(
+            sn: 'A',
+            description: 'Indirect Cost, mobilization & demobilization',
+            amount: 5000000,
+            emphasized: true,
+          ),
+          InvoiceLineItem(
+            sn: '1',
+            description: 'Topographic Survey - 120 ha',
+            qty: '1',
+            uom: 'Lot',
+            amount: 20000000,
+            indent: 1,
+          ),
+        ],
+      );
 
-    expect(bytes.length, greaterThan(1000));
-    expect(ascii.decode(bytes.take(4).toList()), '%PDF');
-  });
+      expect(bytes.length, greaterThan(1000));
+      expect(ascii.decode(bytes.take(4).toList()), '%PDF');
+    },
+  );
 
   test('formats amounts in Indonesian words', () {
     expect(terbilangRupiah(0), 'Nol rupiah');

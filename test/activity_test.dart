@@ -69,10 +69,7 @@ void main() {
         ]),
       );
       for (var i = 1; i < first.length; i++) {
-        expect(
-          first[i].occurredAt.isBefore(first[i - 1].occurredAt),
-          isFalse,
-        );
+        expect(first[i].occurredAt.isBefore(first[i - 1].occurredAt), isFalse);
       }
 
       await provider.ensureActivities(record, contactName: 'Jane');
@@ -98,6 +95,26 @@ void main() {
       final activities = provider.activitiesFor(record.id);
       expect(activities.last.type, ActivityType.note);
       expect(activities.last.title, 'Scope confirmed');
+    });
+
+    test('records a created activity when an offering is added', () async {
+      final provider = ProjectProvider();
+      final record = offering();
+
+      await provider.addOffering(record);
+
+      final activities = provider.activitiesFor(record.id);
+      expect(activities, hasLength(1));
+      expect(activities.single.type, ActivityType.created);
+      expect(activities.single.title, 'Offering created');
+
+      await provider.ensureActivities(record, contactName: 'Jane');
+      expect(
+        provider
+            .activitiesFor(record.id)
+            .where((activity) => activity.type == ActivityType.created),
+        hasLength(1),
+      );
     });
   });
 }

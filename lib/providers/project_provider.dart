@@ -71,7 +71,11 @@ class ProjectProvider extends ChangeNotifier {
         offeringId: offering.id,
         type: ActivityType.created,
         title: 'Offering created',
-        subtitle: 'Draft prepared for $owner',
+        subtitle: offering.lineItems.isEmpty
+            ? 'Draft prepared for $owner'
+            : '${offering.lineItems.length} '
+                  '${offering.lineItems.length == 1 ? 'work item' : 'work items'} '
+                  'prepared for $owner',
         occurredAt: now.subtract(const Duration(days: 4)),
       ),
     ];
@@ -134,7 +138,9 @@ class ProjectProvider extends ChangeNotifier {
         OfferingActivity(
           id: 'seed-${offering.id}-payment',
           offeringId: offering.id,
-          type: fullyPaid ? ActivityType.paymentCompleted : ActivityType.payment,
+          type: fullyPaid
+              ? ActivityType.paymentCompleted
+              : ActivityType.payment,
           title: fullyPaid ? 'Payment completed' : 'Partial payment received',
           subtitle: fullyPaid
               ? '${formatRupiah(offering.amountPaid)} settled in full'
@@ -239,6 +245,21 @@ class ProjectProvider extends ChangeNotifier {
   Future<void> addOffering(Offering offering) async {
     await Future.delayed(const Duration(milliseconds: 200));
     _offerings.add(offering);
+    final owner = offering.owner.trim();
+    final itemCount = offering.lineItems.length;
+    final itemLabel = itemCount == 1 ? 'work item' : 'work items';
+    _activities.add(
+      OfferingActivity(
+        id: 'ACT-${offering.id}-created',
+        offeringId: offering.id,
+        type: ActivityType.created,
+        title: 'Offering created',
+        subtitle: itemCount > 0
+            ? '$itemCount $itemLabel prepared${owner.isEmpty ? '' : ' for $owner'}'
+            : 'Draft prepared${owner.isEmpty ? '' : ' for $owner'}',
+        occurredAt: DateTime.now(),
+      ),
+    );
     notifyListeners();
   }
 
@@ -288,6 +309,8 @@ class ProjectProvider extends ChangeNotifier {
               status: o.status,
               paidStatus: o.paidStatus,
               budgetAmount: o.budgetAmount,
+              lineItems: o.lineItems,
+              numberingStyle: o.numberingStyle,
               amountPaid: o.amountPaid,
               clientHasRecentOffer: o.clientHasRecentOffer,
               rentalUntil: o.rentalUntil,

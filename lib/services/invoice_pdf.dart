@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../models/offering.dart';
 import '../models/payment.dart';
 import '../utils/currency.dart';
+import '../utils/offering_line_items.dart';
 import 'client_directory.dart';
 
 // Palette taken from the Termin invoice mockup.
@@ -29,6 +30,14 @@ const String _companyName = 'PT. GEOTERRA INDONESIA';
 const String _companyTagline = 'Jasa Survei dan Pemetaan';
 const String _companyServices = 'Topografi | Batimetri | Drone | LiDAR';
 const String _companyFooter = 'Menjadi Mitra, Menjaga Kualitas';
+
+const double _pageMarginLeft = 36;
+const double _pageMarginTop = 22;
+const double _pageMarginRight = 34;
+const double _pageMarginBottom = 22;
+const double _bannerWidth = 232;
+const double _bannerHeight = _bannerWidth * 131 / 497;
+const double _bannerGap = 14;
 
 const List<String> _months = [
   'Januari',
@@ -58,6 +67,9 @@ class InvoiceLineItem {
   final int indent;
   final bool emphasized;
 
+  /// When true, this row is not included in the invoice's fallback item total.
+  final bool excludeFromTotal;
+
   const InvoiceLineItem({
     required this.sn,
     required this.description,
@@ -66,6 +78,7 @@ class InvoiceLineItem {
     this.amount,
     this.indent = 0,
     this.emphasized = false,
+    this.excludeFromTotal = false,
   });
 }
 
@@ -103,9 +116,7 @@ Future<Uint8List> buildOfferingInvoicePdf({
   final tax = (subtotal ?? 0) * taxRate;
   final total = subtotal == null ? null : subtotal + tax;
   final lineItems = items ?? _defaultItems(offering, subtotal);
-  final itemTotal = lineItems
-      .where((item) => item.indent == 0 && item.amount != null)
-      .fold<double>(0, (sum, item) => sum + item.amount!);
+  final itemTotal = _invoiceItemTotal(lineItems);
   final tableTotal = contract ?? (itemTotal > 0 ? itemTotal : null);
   final hasTax = subtotal != null && taxRate > 0;
   final taxPercent = taxRate * 100;
@@ -116,9 +127,8 @@ Future<Uint8List> buildOfferingInvoicePdf({
   final termName = isTermin
       ? invoiceSubtitle.toUpperCase().replaceFirst('TAGIHAN ', '')
       : 'Termin';
-  final subtotalLabel = invoiceAmount != null &&
-          contract != null &&
-          contract > 0
+  final subtotalLabel =
+      invoiceAmount != null && contract != null && contract > 0
       ? '$termName ${_percentLabel(invoiceAmount, contract)} dari nilai '
             'kontrak / Subtotal (DPP)'
       : 'Subtotal (DPP)';
@@ -130,11 +140,26 @@ Future<Uint8List> buildOfferingInvoicePdf({
 
   document.addPage(
     pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.fromLTRB(36, 22, 34, 22),
+      pageTheme: pw.PageTheme(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.fromLTRB(
+          _pageMarginLeft,
+          _pageMarginTop,
+          _pageMarginRight,
+          _pageMarginBottom,
+        ),
+        buildBackground: (context) {
+          if (logo == null || context.pageNumber != 1) {
+            return pw.SizedBox.shrink();
+          }
+          return _banner(logo);
+        },
+      ),
       footer: _footer,
       build: (context) => [
-        _header(logo, invoiceTitle, invoiceSubtitle, offering),
+        if (logo != null)
+          pw.SizedBox(height: _bannerHeight - _pageMarginTop + _bannerGap),
+        _header(invoiceTitle, invoiceSubtitle, offering),
         pw.SizedBox(height: 8),
         _headerBand(),
         pw.SizedBox(height: 8),
@@ -265,6 +290,27 @@ Future<pw.MemoryImage?> _loadLogo() async {
 }
 
 List<InvoiceLineItem> _defaultItems(Offering offering, double? budget) {
+  if (offering.lineItems.isNotEmpty) {
+    final numbers = lineItemLabels(
+      offering.lineItems,
+      style: offering.numberingStyle,
+    );
+    return [
+      for (var index = 0; index < offering.lineItems.length; index++)
+        InvoiceLineItem(
+          sn: numbers[index],
+          description: offering.lineItems[index].description,
+          qty: offering.lineItems[index].qty,
+          uom: offering.lineItems[index].uom,
+          amount: offering.lineItems[index].amount > 0
+              ? offering.lineItems[index].amount
+              : null,
+          indent: offering.lineItems[index].indent,
+          excludeFromTotal: offering.lineItems[index].excludeFromTotal,
+        ),
+    ];
+  }
+
   final details = [
     if (offering.serviceType.isNotEmpty) offering.serviceType,
     if (offering.address.isNotEmpty) offering.address,
@@ -282,8 +328,58 @@ List<InvoiceLineItem> _defaultItems(Offering offering, double? budget) {
   ];
 }
 
+double _invoiceItemTotal(List<InvoiceLineItem> items) {
+  if (items.isEmpty) return 0;
+  final rootIndent = items
+      .map((item) => item.indent)
+      .reduce((a, b) => a < b ? a : b);
+
+  var total = 0.0;
+  for (var index = 0; index < items.length; index++) {
+    if (items[index].indent == rootIndent) {
+      total += _effectiveInvoiceItem(items, index);
+    }
+  }
+  return total;
+}
+
+double _effectiveInvoiceItem(List<InvoiceLineItem> items, int index) {
+  final item = items[index];
+  final own = item.excludeFromTotal ? 0.0 : (item.amount ?? 0);
+  if (own > 0) return own;
+
+  int? childIndent;
+  var total = 0.0;
+  for (var i = index + 1; i < items.length; i++) {
+    final row = items[i];
+    if (row.indent <= item.indent) break;
+    childIndent ??= row.indent;
+    if (row.indent == childIndent) {
+      total += _effectiveInvoiceItem(items, i);
+    }
+  }
+  return total;
+}
+
+pw.Widget _banner(pw.MemoryImage logo) {
+  return pw.Stack(
+    overflow: pw.Overflow.visible,
+    children: [
+      pw.Positioned(
+        left: -_pageMarginLeft,
+        top: -_pageMarginTop,
+        child: pw.Image(
+          logo,
+          width: _bannerWidth,
+          height: _bannerHeight,
+          fit: pw.BoxFit.contain,
+        ),
+      ),
+    ],
+  );
+}
+
 pw.Widget _header(
-  pw.MemoryImage? logo,
   String invoiceTitle,
   String invoiceSubtitle,
   Offering offering,
@@ -291,10 +387,6 @@ pw.Widget _header(
   return pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
-      if (logo != null) ...[
-        pw.Image(logo, width: 180, height: 47),
-        pw.SizedBox(height: 4),
-      ],
       pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
@@ -314,18 +406,12 @@ pw.Widget _header(
                 pw.SizedBox(height: 3),
                 pw.Text(
                   _companyTagline,
-                  style: const pw.TextStyle(
-                    fontSize: 8.5,
-                    color: _charcoal,
-                  ),
+                  style: const pw.TextStyle(fontSize: 8.5, color: _charcoal),
                 ),
                 pw.SizedBox(height: 2),
                 pw.Text(
                   _companyServices,
-                  style: const pw.TextStyle(
-                    fontSize: 8,
-                    color: _mutedLight,
-                  ),
+                  style: const pw.TextStyle(fontSize: 8, color: _mutedLight),
                 ),
               ],
             ),
@@ -385,10 +471,7 @@ pw.Widget _headerBand() {
             flex: 26,
             child: pw.Container(height: 10, color: _orange),
           ),
-          pw.Expanded(
-            flex: 74,
-            child: pw.Container(height: 10, color: _navy),
-          ),
+          pw.Expanded(flex: 74, child: pw.Container(height: 10, color: _navy)),
         ],
       ),
     ],
@@ -427,33 +510,27 @@ pw.Widget _parties({
         child: _panelBox(
           title: 'DITAGIHKAN KEPADA',
           height: 78,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                name,
-                style: pw.TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: pw.FontWeight.bold,
-                  color: _ink,
-                ),
+          children: [
+            pw.Text(
+              name,
+              style: pw.TextStyle(
+                fontSize: 10.5,
+                fontWeight: pw.FontWeight.bold,
+                color: _ink,
               ),
-              if (contactLines.isNotEmpty) ...[
-                pw.SizedBox(height: 4),
-                for (final line in contactLines)
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.only(bottom: 1.5),
-                    child: pw.Text(
-                      line,
-                      style: const pw.TextStyle(
-                        fontSize: 8.2,
-                        color: _muted,
-                      ),
-                    ),
+            ),
+            if (contactLines.isNotEmpty) ...[
+              pw.SizedBox(height: 4),
+              for (final line in contactLines)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 1.5),
+                  child: pw.Text(
+                    line,
+                    style: const pw.TextStyle(fontSize: 8.2, color: _muted),
                   ),
-              ],
+                ),
             ],
-          ),
+          ],
         ),
       ),
       pw.SizedBox(width: 2.5),
@@ -462,18 +539,12 @@ pw.Widget _parties({
         child: _panelBox(
           title: 'INFORMASI INVOICE',
           height: 78,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              _infoRow('Nomor Invoice', invoiceNumber),
-              _infoRow('Tanggal Invoice', _formatDate(date)),
-              _infoRow('Nomor PO', poNumber.isEmpty ? '-' : poNumber),
-              _infoRow(
-                'Tanggal PO',
-                poDate == null ? '-' : _formatDate(poDate),
-              ),
-            ],
-          ),
+          children: [
+            _infoRow('Nomor Invoice', invoiceNumber),
+            _infoRow('Tanggal Invoice', _formatDate(date)),
+            _infoRow('Nomor PO', poNumber.isEmpty ? '-' : poNumber),
+            _infoRow('Tanggal PO', poDate == null ? '-' : _formatDate(poDate)),
+          ],
         ),
       ),
     ],
@@ -498,7 +569,10 @@ pw.Widget _projectLine(Offering offering, double? contract) {
               ),
             ),
           ),
-          pw.Text('  |  ', style: const pw.TextStyle(fontSize: 8, color: _muted)),
+          pw.Text(
+            '  |  ',
+            style: const pw.TextStyle(fontSize: 8, color: _muted),
+          ),
           pw.Text(
             'Nilai Kontrak: ',
             style: pw.TextStyle(
@@ -545,13 +619,16 @@ pw.Widget _itemsTable(List<InvoiceLineItem> items, double? total) {
       ),
       for (var i = 0; i < items.length; i++)
         pw.TableRow(
-          decoration: pw.BoxDecoration(
-            color: i.isEven ? _rowWhite : _rowLight,
-          ),
+          decoration: pw.BoxDecoration(color: i.isEven ? _rowWhite : _rowLight),
           children: [
             _cell(items[i].sn, alignRight: true, bold: items[i].emphasized),
             pw.Padding(
-              padding: const pw.EdgeInsets.fromLTRB(7, 4, 7, 4),
+              padding: pw.EdgeInsets.fromLTRB(
+                7 + items[i].indent * 12,
+                4,
+                7,
+                4,
+              ),
               child: pw.Text(
                 items[i].description,
                 style: pw.TextStyle(
@@ -702,9 +779,7 @@ pw.Widget _recapRow(String label, String value) {
   return pw.Container(
     padding: const pw.EdgeInsets.symmetric(vertical: 5),
     decoration: const pw.BoxDecoration(
-      border: pw.Border(
-        bottom: pw.BorderSide(color: _border, width: 0.48),
-      ),
+      border: pw.Border(bottom: pw.BorderSide(color: _border, width: 0.48)),
     ),
     child: pw.Row(
       children: [
@@ -795,20 +870,17 @@ pw.Widget _paymentAndTerms({
         flex: 53,
         child: _panelBox(
           title: 'INFORMASI PEMBAYARAN',
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              _bankRow('Bank', bankName.isEmpty ? '-' : bankName),
-              _bankRow(
-                'Nomor rekening',
-                bankAccountNumber.isEmpty ? '-' : bankAccountNumber,
-              ),
-              _bankRow(
-                'Atas nama',
-                bankAccountName.isEmpty ? '-' : bankAccountName,
-              ),
-            ],
-          ),
+          children: [
+            _bankRow('Bank', bankName.isEmpty ? '-' : bankName),
+            _bankRow(
+              'Nomor rekening',
+              bankAccountNumber.isEmpty ? '-' : bankAccountNumber,
+            ),
+            _bankRow(
+              'Atas nama',
+              bankAccountName.isEmpty ? '-' : bankAccountName,
+            ),
+          ],
         ),
       ),
       pw.SizedBox(width: 2.5),
@@ -816,16 +888,11 @@ pw.Widget _paymentAndTerms({
         flex: 47,
         child: _panelBox(
           title: termsTitle,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              _termLine(paymentTerm),
-              _termLine(
-                'Jangka pembayaran 7 hari sesuai ketentuan dalam PO.',
-              ),
-              _termLine('Invoice asli dan dokumen pendukung disampaikan.'),
-            ],
-          ),
+          children: [
+            _termLine(paymentTerm),
+            _termLine('Jangka pembayaran 7 hari sesuai ketentuan dalam PO.'),
+            _termLine('Invoice asli dan dokumen pendukung disampaikan.'),
+          ],
         ),
       ),
     ],
@@ -834,7 +901,7 @@ pw.Widget _paymentAndTerms({
 
 pw.Widget _panelBox({
   required String title,
-  required pw.Widget child,
+  required List<pw.Widget> children,
   double? height,
 }) {
   return pw.Container(
@@ -842,18 +909,12 @@ pw.Widget _panelBox({
     padding: const pw.EdgeInsets.fromLTRB(10, 8, 9, 8),
     decoration: const pw.BoxDecoration(
       color: _panel,
-      border: pw.Border(
-        left: pw.BorderSide(color: _orange, width: 2.6),
-      ),
+      border: pw.Border(left: pw.BorderSide(color: _orange, width: 2.6)),
     ),
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       mainAxisSize: pw.MainAxisSize.min,
-      children: [
-        _sectionLabel(title),
-        pw.SizedBox(height: 5),
-        child,
-      ],
+      children: [_sectionLabel(title), pw.SizedBox(height: 5), ...children],
     ),
   );
 }
@@ -926,10 +987,7 @@ pw.Widget _infoRow(String label, String value) {
             style: const pw.TextStyle(fontSize: 7.8, color: _muted),
           ),
         ),
-        pw.Text(
-          ': ',
-          style: const pw.TextStyle(fontSize: 7.8, color: _muted),
-        ),
+        pw.Text(': ', style: const pw.TextStyle(fontSize: 7.8, color: _muted)),
         pw.Expanded(
           child: pw.Text(
             value,
@@ -958,10 +1016,7 @@ pw.Widget _bankRow(String label, String value) {
             style: const pw.TextStyle(fontSize: 7.6, color: _muted),
           ),
         ),
-        pw.Text(
-          ': ',
-          style: const pw.TextStyle(fontSize: 7.6, color: _muted),
-        ),
+        pw.Text(': ', style: const pw.TextStyle(fontSize: 7.6, color: _muted)),
         pw.Expanded(
           child: pw.Text(
             value,

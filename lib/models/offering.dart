@@ -1,3 +1,6 @@
+import 'line_item_number_style.dart';
+import 'offering_line_item.dart';
+
 enum OfferingStatus { draft, sent, accepted, rejected, expired }
 
 enum PaidStatus { unpaid, partiallyPaid, paid }
@@ -18,6 +21,16 @@ class Offering {
   final OfferingStatus status;
   final PaidStatus paidStatus;
   final double? budgetAmount;
+
+  /// Itemised description of work. The effective sum of these rows is the
+  /// offering budget; rows marked [OfferingLineItem.excludeFromTotal] are
+  /// omitted. Older records may have a budget with no rows yet.
+  final List<OfferingLineItem> lineItems;
+
+  /// Fallback numbering style for rows that do not have a manually typed
+  /// number label. Used by older records; the offering form stores per-row
+  /// labels when the user types into the No. column.
+  final LineItemNumberStyle numberingStyle;
 
   /// Amount already collected from the client. For older records this is
   /// derived from [paidStatus] and [budgetAmount] so existing paid/partial
@@ -46,6 +59,8 @@ class Offering {
     this.status = OfferingStatus.draft,
     this.paidStatus = PaidStatus.unpaid,
     this.budgetAmount,
+    this.lineItems = const [],
+    this.numberingStyle = LineItemNumberStyle.numeric,
     double? amountPaid,
     this.clientHasRecentOffer = false,
     this.rentalUntil,
@@ -85,6 +100,18 @@ class Offering {
       serviceType.toLowerCase().trim().startsWith('rent');
 
   factory Offering.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['lineItems'];
+    final lineItems = rawItems is List
+        ? rawItems
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    OfferingLineItem.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList(growable: false)
+        : const <OfferingLineItem>[];
+    final storedBudget = (json['budgetAmount'] as num?)?.toDouble();
+
     return Offering(
       id: json['id'] ?? '',
       number: json['number'] ?? '',
@@ -96,12 +123,49 @@ class Offering {
       longitude: json['longitude']?.toDouble(),
       status: _statusFromString(json['status'] ?? 'draft'),
       paidStatus: _paidStatusFromString(json['paidStatus'] ?? 'unpaid'),
-      budgetAmount: (json['budgetAmount'] as num?)?.toDouble(),
+      budgetAmount: storedBudget ?? _lineItemsTotal(lineItems),
+      lineItems: lineItems,
+      numberingStyle: LineItemNumberStyle.fromStorage(
+        json['numberingStyle']?.toString(),
+      ),
       amountPaid: (json['amountPaid'] as num?)?.toDouble(),
       clientHasRecentOffer: json['clientHasRecentOffer'] == true,
       rentalUntil: DateTime.tryParse(json['rentalUntil']?.toString() ?? ''),
       projectId: json['projectId'],
     );
+  }
+
+  static double? _lineItemsTotal(List<OfferingLineItem> items) {
+    if (items.isEmpty) return null;
+    final rootIndent = items
+        .map((item) => item.indent)
+        .reduce((a, b) => a < b ? a : b);
+
+    var total = 0.0;
+    for (var index = 0; index < items.length; index++) {
+      if (items[index].indent == rootIndent) {
+        total += _effectiveItemAmount(items, index);
+      }
+    }
+    return total;
+  }
+
+  static double _effectiveItemAmount(List<OfferingLineItem> items, int index) {
+    final item = items[index];
+    final own = item.excludeFromTotal ? 0.0 : item.amount;
+    if (own > 0) return own;
+
+    int? childIndent;
+    var total = 0.0;
+    for (var i = index + 1; i < items.length; i++) {
+      final row = items[i];
+      if (row.indent <= item.indent) break;
+      childIndent ??= row.indent;
+      if (row.indent == childIndent) {
+        total += _effectiveItemAmount(items, i);
+      }
+    }
+    return total;
   }
 
   Map<String, dynamic> toJson() {
@@ -117,6 +181,8 @@ class Offering {
       'status': _statusToString(status),
       'paidStatus': _paidStatusToString(paidStatus),
       'budgetAmount': budgetAmount,
+      'lineItems': [for (final item in lineItems) item.toJson()],
+      'numberingStyle': numberingStyle.name,
       'amountPaid': amountPaid,
       'clientHasRecentOffer': clientHasRecentOffer,
       'rentalUntil': rentalUntil?.toIso8601String(),
