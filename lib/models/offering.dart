@@ -19,6 +19,11 @@ class Offering {
   final PaidStatus paidStatus;
   final double? budgetAmount;
 
+  /// Amount already collected from the client. For older records this is
+  /// derived from [paidStatus] and [budgetAmount] so existing paid/partial
+  /// offerings still show a meaningful balance.
+  final double amountPaid;
+
   /// Whether this client already received another offer recently. Set from
   /// the offering form so the team can avoid duplicate proposals.
   final bool clientHasRecentOffer;
@@ -41,10 +46,32 @@ class Offering {
     this.status = OfferingStatus.draft,
     this.paidStatus = PaidStatus.unpaid,
     this.budgetAmount,
+    double? amountPaid,
     this.clientHasRecentOffer = false,
     this.rentalUntil,
     this.projectId,
-  });
+  }) : amountPaid = amountPaid ?? _defaultAmountPaid(paidStatus, budgetAmount);
+
+  /// Remaining balance for this offering, or `null` when no budget is set.
+  double? get remainingAmount {
+    final budget = budgetAmount;
+    if (budget == null) return null;
+    final remaining = budget - amountPaid;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  /// Whether the offering has been fully paid.
+  bool get isFullyPaid =>
+      budgetAmount != null && budgetAmount! > 0 && amountPaid >= budgetAmount!;
+
+  static double _defaultAmountPaid(PaidStatus status, double? budget) {
+    final total = budget ?? 0;
+    return switch (status) {
+      PaidStatus.unpaid => 0,
+      PaidStatus.partiallyPaid => total * 0.5,
+      PaidStatus.paid => total,
+    };
+  }
 
   bool get hasProject => projectId != null;
 
@@ -70,6 +97,7 @@ class Offering {
       status: _statusFromString(json['status'] ?? 'draft'),
       paidStatus: _paidStatusFromString(json['paidStatus'] ?? 'unpaid'),
       budgetAmount: (json['budgetAmount'] as num?)?.toDouble(),
+      amountPaid: (json['amountPaid'] as num?)?.toDouble(),
       clientHasRecentOffer: json['clientHasRecentOffer'] == true,
       rentalUntil: DateTime.tryParse(json['rentalUntil']?.toString() ?? ''),
       projectId: json['projectId'],
@@ -89,6 +117,7 @@ class Offering {
       'status': _statusToString(status),
       'paidStatus': _paidStatusToString(paidStatus),
       'budgetAmount': budgetAmount,
+      'amountPaid': amountPaid,
       'clientHasRecentOffer': clientHasRecentOffer,
       'rentalUntil': rentalUntil?.toIso8601String(),
       'projectId': projectId,

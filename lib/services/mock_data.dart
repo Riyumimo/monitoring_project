@@ -94,6 +94,14 @@ class MockData {
 
   static List<User> workers() => [
         User(
+          id: 'u1',
+          name: 'Alice Manager',
+          email: 'manager@geoterra.com',
+          role: 'Manager',
+          phone: '+62 811-0000-1122',
+          workerTypes: const [WorkerType.manager],
+        ),
+        User(
           id: 'u2',
           name: 'Bob Worker',
           email: 'worker@geoterra.com',
@@ -130,6 +138,14 @@ class MockData {
           role: 'FieldWorker',
           phone: '+62 818-5566-7788',
           workerTypes: const [WorkerType.cad],
+        ),
+        User(
+          id: 'u7',
+          name: 'Olivia Owner',
+          email: 'owner@geoterra.com',
+          role: 'Manager',
+          phone: '+62 819-8899-0011',
+          workerTypes: const [WorkerType.owner],
         ),
       ];
 

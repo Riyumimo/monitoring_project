@@ -47,6 +47,12 @@ dependencies:
   go_router: ^17.5.0
   web: ^1.1.1
   shared_preferences: ^2.3.2
+  file_picker: ^13.3.0
+  pdf: ^3.12.0
+  # Pinned while pdf 3.12 caps archive <4.1.0; image 4.11 needs a newer
+  # archive. proj4dart 3 keeps flutter_map on the current MGRS/Unicode stack.
+  image: 4.5.4
+  proj4dart: 3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +75,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - lib/assets/invoice_logo.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

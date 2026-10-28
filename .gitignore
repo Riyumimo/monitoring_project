@@ -8,6 +8,11 @@ npm-debug.log*
 *.pyc
 *.swp
 .DS_Store
+/nul
+
+# Local reference material (not part of the app bundle)
+/lib/assets/Invoice_mocup_Termin_01_.pdf
+/lib/assets/landgis_database_schema*.md
 .atom/
 .build/
 .buildlog/

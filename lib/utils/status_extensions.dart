@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/activity.dart';
 import '../models/offering.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
@@ -88,6 +89,54 @@ extension PaidStatusX on PaidStatus {
         return AppColors.partiallyPaid;
       case PaidStatus.paid:
         return AppColors.paid;
+    }
+  }
+}
+
+extension ActivityTypeX on ActivityType {
+  IconData get icon {
+    switch (this) {
+      case ActivityType.created:
+        return Icons.note_add_outlined;
+      case ActivityType.sent:
+        return Icons.send_outlined;
+      case ActivityType.accepted:
+        return Icons.check_circle_outline;
+      case ActivityType.rejected:
+        return Icons.cancel_outlined;
+      case ActivityType.expired:
+        return Icons.history;
+      case ActivityType.projectCreated:
+        return Icons.folder_open_outlined;
+      case ActivityType.payment:
+        return Icons.payments_outlined;
+      case ActivityType.paymentCompleted:
+        return Icons.verified_outlined;
+      case ActivityType.note:
+        return Icons.sticky_note_2_outlined;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case ActivityType.created:
+        return AppColors.textSecondary;
+      case ActivityType.sent:
+        return AppColors.pending;
+      case ActivityType.accepted:
+        return AppColors.completed;
+      case ActivityType.rejected:
+        return AppColors.onHold;
+      case ActivityType.expired:
+        return AppColors.textSecondary;
+      case ActivityType.projectCreated:
+        return AppColors.primary;
+      case ActivityType.payment:
+        return AppColors.paid;
+      case ActivityType.paymentCompleted:
+        return AppColors.paid;
+      case ActivityType.note:
+        return AppColors.inProgress;
     }
   }
 }

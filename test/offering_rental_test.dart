@@ -43,6 +43,46 @@ void main() {
     expect(restored.clientHasRecentOffer, isFalse);
   });
 
+  test('legacy paid statuses derive a matching amount paid', () {
+    final partial = Offering(
+      id: 'o-partial',
+      name: 'Partial Payment',
+      owner: 'Client',
+      address: 'Address',
+      paidStatus: PaidStatus.partiallyPaid,
+      budgetAmount: 100000000,
+    );
+    final paid = Offering(
+      id: 'o-paid',
+      name: 'Fully Paid',
+      owner: 'Client',
+      address: 'Address',
+      paidStatus: PaidStatus.paid,
+      budgetAmount: 100000000,
+    );
+
+    expect(partial.amountPaid, 50000000);
+    expect(partial.remainingAmount, 50000000);
+    expect(paid.amountPaid, 100000000);
+    expect(paid.isFullyPaid, isTrue);
+  });
+
+  test('recorded payment amount survives serialization', () {
+    final offering = Offering(
+      id: 'o-payment',
+      name: 'Recorded Payment',
+      owner: 'Client',
+      address: 'Address',
+      paidStatus: PaidStatus.partiallyPaid,
+      budgetAmount: 100000000,
+      amountPaid: 76000000,
+    );
+
+    final restored = Offering.fromJson(offering.toJson());
+    expect(restored.amountPaid, 76000000);
+    expect(restored.remainingAmount, 24000000);
+  });
+
   test('survey offerings are not rentals', () {
     final offering = Offering(
       id: 'o-survey',

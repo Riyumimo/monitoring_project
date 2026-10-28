@@ -5,8 +5,9 @@ import '../theme/app_theme.dart';
 class SidebarMenuItem {
   final IconData icon;
   final String label;
+  final bool dividerBefore;
 
-  const SidebarMenuItem(this.icon, this.label);
+  const SidebarMenuItem(this.icon, this.label, {this.dividerBefore = false});
 }
 
 class OfferingSidebar extends StatelessWidget {
@@ -46,12 +47,23 @@ class OfferingSidebar extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.only(bottom: 12),
                 children: [
-                  for (var i = 0; i < items.length; i++)
+                  for (var i = 0; i < items.length; i++) ...[
+                    if (items[i].dividerBefore)
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          collapsed ? 12 : 18,
+                          10,
+                          collapsed ? 12 : 18,
+                          10,
+                        ),
+                        child: const Divider(height: 1),
+                      ),
                     _navTile(
                       items[i],
                       selected: selectedIndex == i,
                       onTap: () => onSelect(i),
                     ),
+                  ],
                 ],
               ),
             ),

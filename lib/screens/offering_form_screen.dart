@@ -253,6 +253,9 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       status: _status,
       paidStatus: _paidStatus,
       budgetAmount: parseRupiah(_budgetController.text),
+      amountPaid: _editing == null || _paidStatus != _editing!.paidStatus
+          ? null
+          : _editing!.amountPaid,
       clientHasRecentOffer: _clientHasRecentOffer,
       rentalUntil: _isRentalService ? _rentalUntil : null,
       projectId: _editing?.projectId,

@@ -11,6 +11,7 @@ import '../router/app_router.dart';
 import '../services/schema_mock_data.dart';
 import '../theme/app_theme.dart';
 import '../utils/csv_download.dart';
+import '../utils/currency.dart';
 import '../utils/status_extensions.dart';
 import '../widgets/offering_sidebar.dart';
 
@@ -54,13 +55,20 @@ class _OfferingsPageState extends State<OfferingsPage> {
     SidebarMenuItem(Icons.inventory_2_outlined, 'All Offerings'),
     SidebarMenuItem(Icons.folder_outlined, 'Projects'),
     SidebarMenuItem(Icons.people_outline, 'Clients'),
+    SidebarMenuItem(
+      Icons.insights_outlined,
+      'Analytics',
+      dividerBefore: true,
+    ),
   ];
 
   bool get _isOfferingsView => _menuIndex == 0;
+  bool get _isAnalyticsView => _menuIndex == 3;
 
   String get _searchHint => switch (_menuIndex) {
     1 => 'Search projects...',
     2 => 'Search clients...',
+    3 => 'Search analytics...',
     _ => 'Search offerings...',
   };
 
@@ -95,17 +103,19 @@ class _OfferingsPageState extends State<OfferingsPage> {
       if (_visible.contains(c)) c,
   ];
 
+  List<Offering> _visibleOfferings(List<Offering> all) {
+    if (_isManager) return all;
+    final userId = context.read<AuthProvider>().user?.id;
+    final provider = context.read<ProjectProvider>();
+    return all.where((o) {
+      final projectId = o.projectId;
+      if (projectId == null || userId == null) return false;
+      return provider.projectById(projectId)?.isAssignedTo(userId) ?? false;
+    }).toList();
+  }
+
   List<Offering> _filtered(List<Offering> all) {
-    var list = all;
-    if (!_isManager) {
-      final userId = context.read<AuthProvider>().user?.id;
-      final provider = context.read<ProjectProvider>();
-      list = list.where((o) {
-        final projectId = o.projectId;
-        if (projectId == null || userId == null) return false;
-        return provider.projectById(projectId)?.isAssignedTo(userId) ?? false;
-      }).toList();
-    }
+    var list = _visibleOfferings(all);
     final q = _query.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list
@@ -122,14 +132,16 @@ class _OfferingsPageState extends State<OfferingsPage> {
     return list;
   }
 
+  List<Project> _assignedProjects(List<Project> all) {
+    if (_isManager) return all;
+    final userId = context.read<AuthProvider>().user?.id;
+    return userId == null
+        ? const <Project>[]
+        : all.where((p) => p.isAssignedTo(userId)).toList();
+  }
+
   List<Project> _visibleProjects(List<Project> all) {
-    var list = all;
-    if (!_isManager) {
-      final userId = context.read<AuthProvider>().user?.id;
-      list = userId == null
-          ? const <Project>[]
-          : all.where((p) => p.isAssignedTo(userId)).toList();
-    }
+    var list = _assignedProjects(all);
     final q = _query.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list
@@ -313,6 +325,8 @@ class _OfferingsPageState extends State<OfferingsPage> {
     }
     final offerings = _filtered(provider.offerings);
     final projects = _visibleProjects(provider.projects);
+    final analyticsOfferings = _visibleOfferings(provider.offerings);
+    final analyticsProjects = _assignedProjects(provider.projects);
 
     return Container(
       color: AppColors.background,
@@ -324,17 +338,24 @@ class _OfferingsPageState extends State<OfferingsPage> {
                 setState(() => _sidebarCollapsed = !_sidebarCollapsed),
             items: _menuItems,
             selectedIndex: _menuIndex,
-            onSelect: (i) => setState(() => _menuIndex = i),
+            onSelect: (i) => setState(() {
+              _menuIndex = i;
+              _searching = false;
+              _query = '';
+              _searchController.clear();
+            }),
           ),
           Expanded(
             child: Column(
               children: [
-                _toolbar(),
+                if (!_isAnalyticsView) _toolbar(),
                 Expanded(
                   child: _menuIndex == 1
                       ? _projectsView(projects)
                       : _menuIndex == 2
                       ? _clientsView()
+                      : _menuIndex == 3
+                      ? _analyticsView(analyticsOfferings, analyticsProjects)
                       : offerings.isEmpty
                       ? _emptyState()
                       : RefreshIndicator(
@@ -920,6 +941,1279 @@ class _OfferingsPageState extends State<OfferingsPage> {
         ),
       ),
     );
+  }
+
+  Widget _analyticsView(List<Offering> offerings, List<Project> projects) {
+    final budget = offerings.fold<double>(
+      0,
+      (sum, offering) => sum + (offering.budgetAmount ?? 0),
+    );
+    final collected = offerings.fold<double>(
+      0,
+      (sum, offering) => sum + offering.amountPaid,
+    );
+    final outstanding = offerings.fold<double>(
+      0,
+      (sum, offering) => sum + (offering.remainingAmount ?? 0),
+    );
+    final accepted = offerings
+        .where((offering) => offering.status == OfferingStatus.accepted)
+        .length;
+    final rejected = offerings
+        .where((offering) => offering.status == OfferingStatus.rejected)
+        .length;
+    final decided = accepted + rejected;
+    final activeProjects = projects
+        .where(
+          (project) =>
+              project.status != ProjectStatus.completed &&
+              project.status != ProjectStatus.cancelled,
+        )
+        .length;
+    final completedProjects = projects
+        .where((project) => project.status == ProjectStatus.completed)
+        .length;
+    final averageProgress = projects.isEmpty
+        ? 0.0
+        : projects.fold<int>(
+                0,
+                (sum, project) => sum + project.progressPercentage,
+              ) /
+              projects.length /
+              100;
+
+    final kpis = <_AnalyticsKpi>[
+      _AnalyticsKpi(
+        label: 'Pipeline value',
+        value: formatRupiah(budget),
+        caption:
+            '${offerings.length} offering${offerings.length == 1 ? '' : 's'}',
+        icon: Icons.account_balance_wallet_outlined,
+        color: AppColors.primary,
+      ),
+      _AnalyticsKpi(
+        label: 'Collected',
+        value: formatRupiah(collected),
+        caption: budget > 0
+            ? '${((collected / budget) * 100).round()}% of pipeline'
+            : 'No budget recorded',
+        icon: Icons.payments_outlined,
+        color: AppColors.paid,
+      ),
+      _AnalyticsKpi(
+        label: 'Outstanding',
+        value: formatRupiah(outstanding),
+        caption: '${offerings.where((o) => (o.remainingAmount ?? 0) > 0).length} with a balance',
+        icon: Icons.request_quote_outlined,
+        color: AppColors.pending,
+      ),
+      _AnalyticsKpi(
+        label: 'Acceptance rate',
+        value: decided == 0 ? '—' : '${((accepted / decided) * 100).round()}%',
+        caption: decided == 0 ? 'No decided offers' : '$accepted of $decided decided',
+        icon: Icons.thumb_up_alt_outlined,
+        color: AppColors.accepted,
+      ),
+      _AnalyticsKpi(
+        label: 'Active projects',
+        value: '$activeProjects',
+        caption: '${projects.length} total · $completedProjects completed',
+        icon: Icons.folder_open_outlined,
+        color: AppColors.inProgress,
+      ),
+      _AnalyticsKpi(
+        label: 'Average progress',
+        value: '${(averageProgress * 100).round()}%',
+        caption: projects.isEmpty ? 'No projects yet' : 'Across visible projects',
+        icon: Icons.stacked_line_chart_outlined,
+        color: AppColors.completed,
+      ),
+    ];
+
+    final rentals = _rentalWatchlist(offerings);
+    final unpaidProjects = _unpaidProjects(offerings, projects);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _analyticsHeader(offerings.length, projects.length),
+          const SizedBox(height: 18),
+          _kpiGrid(kpis),
+          const SizedBox(height: 16),
+          _unpaidProjectsCard(unpaidProjects),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 16.0;
+              final twoColumns = constraints.maxWidth >= 980;
+              if (!twoColumns) {
+                return Column(
+                  children: [
+                    _collectionHealthCard(
+                      budget: budget,
+                      collected: collected,
+                      outstanding: outstanding,
+                    ),
+                    const SizedBox(height: gap),
+                    _offeringStatusCard(offerings),
+                    const SizedBox(height: gap),
+                    _projectDeadlinesCard(projects),
+                    const SizedBox(height: gap),
+                    _topClientsCard(offerings),
+                    const SizedBox(height: gap),
+                    _serviceMixCard(offerings),
+                    const SizedBox(height: gap),
+                    _projectHealthCard(projects, averageProgress),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _collectionHealthCard(
+                          budget: budget,
+                          collected: collected,
+                          outstanding: outstanding,
+                        ),
+                        const SizedBox(height: gap),
+                        _projectDeadlinesCard(projects),
+                        const SizedBox(height: gap),
+                        _serviceMixCard(offerings),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: gap),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _offeringStatusCard(offerings),
+                        const SizedBox(height: gap),
+                        _topClientsCard(offerings),
+                        const SizedBox(height: gap),
+                        _projectHealthCard(projects, averageProgress),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          if (rentals.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _rentalWatchlistCard(rentals),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _analyticsHeader(int offeringCount, int projectCount) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 44,
+          width: 44,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.insights_outlined, color: AppColors.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Analytics',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '$offeringCount offerings · $projectCount projects',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _pill('Live view', AppColors.accepted),
+      ],
+    );
+  }
+
+  Widget _kpiGrid(List<_AnalyticsKpi> kpis) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 12.0;
+        final columns = constraints.maxWidth >= 1040
+            ? 3
+            : constraints.maxWidth >= 640
+            ? 2
+            : 1;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final kpi in kpis)
+              SizedBox(width: width, child: _kpiCard(kpi)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _kpiCard(_AnalyticsKpi kpi) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            height: 42,
+            width: 42,
+            decoration: BoxDecoration(
+              color: kpi.color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(kpi.icon, size: 20, color: kpi.color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  kpi.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  kpi.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  kpi.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _analyticsCard({
+    required String title,
+    String? subtitle,
+    Widget? trailing,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 10),
+                trailing,
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _collectionHealthCard({
+    required double budget,
+    required double collected,
+    required double outstanding,
+  }) {
+    final rate = budget > 0 ? (collected / budget).clamp(0.0, 1.0) : 0.0;
+    return _analyticsCard(
+      title: 'Collection health',
+      subtitle: 'Collected against the offering pipeline',
+      trailing: _pill('${(rate * 100).round()}%', AppColors.paid),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                height: 104,
+                width: 104,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox.expand(
+                      child: CircularProgressIndicator(
+                        value: rate,
+                        strokeWidth: 10,
+                        strokeCap: StrokeCap.round,
+                        backgroundColor: AppColors.border,
+                        valueColor: const AlwaysStoppedAnimation(AppColors.paid),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${(rate * 100).round()}%',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const Text(
+                          'collected',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  children: [
+                    _analyticsAmountRow(
+                      'Pipeline',
+                      formatRupiah(budget),
+                      AppColors.primary,
+                    ),
+                    const SizedBox(height: 8),
+                    _analyticsAmountRow(
+                      'Collected',
+                      formatRupiah(collected),
+                      AppColors.paid,
+                    ),
+                    const SizedBox(height: 8),
+                    _analyticsAmountRow(
+                      'Outstanding',
+                      formatRupiah(outstanding),
+                      AppColors.pending,
+                    ),
+                    const SizedBox(height: 12),
+                    _segmentedBar([
+                      _AnalyticsSlice('Collected', collected, AppColors.paid),
+                      _AnalyticsSlice(
+                        'Outstanding',
+                        outstanding,
+                        AppColors.pending,
+                      ),
+                    ]),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _analyticsAmountRow(String label, String value, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _offeringStatusCard(List<Offering> offerings) {
+    final total = offerings.length;
+    return _analyticsCard(
+      title: 'Offering status',
+      subtitle: 'Where the pipeline currently sits',
+      child: Column(
+        children: [
+          for (final status in OfferingStatus.values)
+            _distributionRow(
+              label: status.label,
+              value: _countShare(
+                offerings.where((o) => o.status == status).length,
+                total,
+              ),
+              ratio: total == 0
+                  ? 0
+                  : offerings.where((o) => o.status == status).length / total,
+              color: status.color,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _projectDeadlinesCard(List<Project> projects) {
+    final deadlines = projects
+        .where(
+          (project) =>
+              project.endDate != null &&
+              project.status != ProjectStatus.completed &&
+              project.status != ProjectStatus.cancelled,
+        )
+        .toList()
+      ..sort((a, b) => a.endDate!.compareTo(b.endDate!));
+    final overdue = deadlines
+        .where((project) => _daysUntil(project.endDate!) < 0)
+        .length;
+    final top = deadlines.take(5).toList();
+
+    return _analyticsCard(
+      title: 'Project deadlines',
+      subtitle: 'Active projects by due date',
+      trailing: _pill(
+        overdue > 0 ? '$overdue overdue' : '${deadlines.length} active',
+        overdue > 0 ? AppColors.onHold : AppColors.primary,
+      ),
+      child: deadlines.isEmpty
+          ? _analyticsEmpty('No active project deadlines')
+          : Column(
+              children: [
+                for (var i = 0; i < top.length; i++) ...[
+                  _projectDeadlineRow(top[i]),
+                  if (i < top.length - 1)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(height: 1),
+                    ),
+                ],
+                if (deadlines.length > top.length) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '+${deadlines.length - top.length} more '
+                      'deadline${deadlines.length - top.length == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget _projectDeadlineRow(Project project) {
+    final due = project.endDate!;
+    final days = _daysUntil(due);
+    final (label, color) = days < 0
+        ? ('${days.abs()}d overdue', AppColors.onHold)
+        : days == 0
+        ? ('Due today', AppColors.onHold)
+        : days <= 7
+        ? ('${days}d left', AppColors.pending)
+        : ('${days}d left', AppColors.primary);
+    final client = project.owner.trim().isEmpty
+        ? 'No client'
+        : project.owner.trim();
+    final progress = (project.progressPercentage / 100).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              height: 32,
+              width: 32,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(Icons.event_outlined, size: 16, color: color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    project.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$client · ${project.status.label}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _analyticsDate(due),
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                _pill(label, color),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 7),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 5,
+            backgroundColor: AppColors.background,
+            valueColor: AlwaysStoppedAnimation(color),
+          ),
+        ),
+      ],
+    );
+  }
+
+  int _daysUntil(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(date.year, date.month, date.day);
+    return target.difference(today).inDays;
+  }
+
+  Widget _topClientsCard(List<Offering> offerings) {
+    final aggregates = <String, _ClientAggregate>{};
+    for (final offering in offerings) {
+      final name = offering.owner.trim().isEmpty
+          ? 'Unassigned'
+          : offering.owner.trim();
+      final aggregate = aggregates.putIfAbsent(
+        name,
+        () => _ClientAggregate(),
+      );
+      aggregate.count += 1;
+      aggregate.budget += offering.budgetAmount ?? 0;
+      aggregate.paid += offering.amountPaid;
+    }
+    final top = aggregates.entries.toList()
+      ..sort((a, b) => b.value.budget.compareTo(a.value.budget));
+
+    return _analyticsCard(
+      title: 'Top clients',
+      subtitle: 'Ranked by offering value',
+      trailing: _pill('${aggregates.length} clients', AppColors.primary),
+      child: top.isEmpty
+          ? _analyticsEmpty('No client data yet')
+          : Column(
+              children: [
+                for (var i = 0; i < top.length && i < 5; i++) ...[
+                  _clientAggregateRow(i + 1, top[i].key, top[i].value),
+                  if (i < top.length - 1 && i < 4)
+                    const SizedBox(height: 14),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget _clientAggregateRow(
+    int rank,
+    String name,
+    _ClientAggregate aggregate,
+  ) {
+    final ratio = aggregate.budget > 0
+        ? (aggregate.paid / aggregate.budget).clamp(0.0, 1.0)
+        : 0.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              height: 22,
+              width: 22,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: rank <= 3
+                    ? AppColors.primary.withValues(alpha: 0.12)
+                    : AppColors.background,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                '$rank',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: rank <= 3
+                      ? AppColors.primary
+                      : AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${aggregate.count} offering${aggregate.count == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              formatRupiah(aggregate.budget),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 5,
+            backgroundColor: AppColors.background,
+            valueColor: const AlwaysStoppedAnimation(AppColors.paid),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _serviceMixCard(List<Offering> offerings) {
+    final counts = <String, int>{};
+    final values = <String, double>{};
+    for (final offering in offerings) {
+      final key = offering.serviceType.trim().isEmpty
+          ? 'Unspecified'
+          : offering.serviceType.trim();
+      counts[key] = (counts[key] ?? 0) + 1;
+      values[key] = (values[key] ?? 0) + (offering.budgetAmount ?? 0);
+    }
+    final types = counts.keys.toList()
+      ..sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0));
+
+    return _analyticsCard(
+      title: 'Service mix',
+      subtitle: 'Offerings grouped by service type',
+      child: types.isEmpty
+          ? _analyticsEmpty('No offerings yet')
+          : Column(
+              children: [
+                for (var i = 0; i < types.length; i++)
+                  _distributionRow(
+                    label: types[i],
+                    value:
+                        '${counts[types[i]]} · ${formatRupiah(values[types[i]])}',
+                    ratio: offerings.isEmpty
+                        ? 0
+                        : (counts[types[i]] ?? 0) / offerings.length,
+                    color: _analyticsColor(i),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Widget _projectHealthCard(List<Project> projects, double averageProgress) {
+    final slices = <_AnalyticsSlice>[
+      for (final status in ProjectStatus.values)
+        _AnalyticsSlice(
+          status.label,
+          projects.where((p) => p.status == status).length.toDouble(),
+          status.color,
+        ),
+    ];
+    return _analyticsCard(
+      title: 'Project health',
+      subtitle: 'Execution status across projects',
+      trailing: _pill(
+        '${(averageProgress * 100).round()}% avg',
+        AppColors.inProgress,
+      ),
+      child: projects.isEmpty
+          ? _analyticsEmpty('No projects yet')
+          : Column(
+              children: [
+                _segmentedBar(slices, height: 10),
+                const SizedBox(height: 14),
+                for (final status in ProjectStatus.values) ...[
+                  _legendRow(
+                    label: status.label,
+                    count: projects.where((p) => p.status == status).length,
+                    color: status.color,
+                    total: projects.length,
+                  ),
+                  if (status != ProjectStatus.values.last)
+                    const SizedBox(height: 9),
+                ],
+              ],
+            ),
+    );
+  }
+
+  List<_UnpaidProject> _unpaidProjects(
+    List<Offering> offerings,
+    List<Project> projects,
+  ) {
+    final byId = {for (final offering in offerings) offering.id: offering};
+    final items = <_UnpaidProject>[];
+    for (final project in projects) {
+      final offering = byId[project.offeringId];
+      if (offering == null || offering.paidStatus == PaidStatus.paid) continue;
+      items.add(_UnpaidProject(project, offering, offering.remainingAmount));
+    }
+    items.sort(
+      (a, b) => (b.remaining ?? 0).compareTo(a.remaining ?? 0),
+    );
+    return items;
+  }
+
+  Widget _unpaidProjectsCard(List<_UnpaidProject> unpaidProjects) {
+    final total = unpaidProjects.fold<double>(
+      0,
+      (sum, item) => sum + (item.remaining ?? 0),
+    );
+    final visible = unpaidProjects.take(6).toList();
+    final totalLabel = unpaidProjects.length == 1 ? 'project' : 'projects';
+    return _analyticsCard(
+      title: 'Unpaid projects',
+      subtitle: total > 0
+          ? '${formatRupiah(total)} outstanding across '
+                '${unpaidProjects.length} $totalLabel'
+          : 'Projects whose offering invoice is not settled',
+      trailing: _pill(
+        '${unpaidProjects.length} unpaid',
+        unpaidProjects.isEmpty ? AppColors.completed : AppColors.pending,
+      ),
+      child: unpaidProjects.isEmpty
+          ? _analyticsEmpty('All project invoices are settled')
+          : Column(
+              children: [
+                for (var i = 0; i < visible.length; i++) ...[
+                  _unpaidProjectRow(visible[i]),
+                  if (i < visible.length - 1)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(height: 1),
+                    ),
+                ],
+                if (unpaidProjects.length > visible.length) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '+${unpaidProjects.length - visible.length} more '
+                      'unpaid $totalLabel',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget _unpaidProjectRow(_UnpaidProject item) {
+    final offering = item.offering;
+    final budget = offering.budgetAmount ?? 0;
+    final paidRatio = budget > 0
+        ? (offering.amountPaid / budget).clamp(0.0, 1.0)
+        : 0.0;
+    final color = offering.paidStatus.color;
+    final client = item.project.owner.isEmpty
+        ? 'No client'
+        : item.project.owner;
+    final number = offering.number.isEmpty
+        ? 'No offering number'
+        : offering.number;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              height: 34,
+              width: 34,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(Icons.folder_outlined, size: 17, color: color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.project.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$client · $number · ${item.project.status.label}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  item.remaining == null
+                      ? 'No budget'
+                      : formatRupiah(item.remaining),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                _pill(offering.paidStatus.label, color),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 7),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: paidRatio,
+            minHeight: 5,
+            backgroundColor: AppColors.background,
+            valueColor: const AlwaysStoppedAnimation(AppColors.paid),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Offering> _rentalWatchlist(List<Offering> offerings) {
+    final rentals = offerings
+        .where((o) => o.isRentalService && o.rentalUntil != null)
+        .toList()
+      ..sort((a, b) => a.rentalUntil!.compareTo(b.rentalUntil!));
+    return rentals.take(5).toList();
+  }
+
+  Widget _rentalWatchlistCard(List<Offering> rentals) {
+    return _analyticsCard(
+      title: 'Rental watchlist',
+      subtitle: 'Rented tools due for return',
+      trailing: _pill('${rentals.length} active', AppColors.primary),
+      child: Column(
+        children: [
+          for (var i = 0; i < rentals.length; i++) ...[
+            _rentalRow(rentals[i]),
+            if (i < rentals.length - 1)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Divider(height: 1),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _rentalRow(Offering offering) {
+    final until = offering.rentalUntil!;
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final target = DateTime(until.year, until.month, until.day);
+    final days = target.difference(start).inDays;
+    final (label, color) = days < 0
+        ? ('${days.abs()}d overdue', AppColors.onHold)
+        : days == 0
+        ? ('Due today', AppColors.onHold)
+        : days <= 3
+        ? ('${days}d left', AppColors.pending)
+        : ('${days}d left', AppColors.primary);
+
+    return Row(
+      children: [
+        Container(
+          height: 32,
+          width: 32,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(Icons.event_outlined, size: 16, color: color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                offering.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${offering.owner.isEmpty ? 'No client' : offering.owner} · '
+                '${_analyticsDate(until)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        _pill(label, color),
+      ],
+    );
+  }
+
+  Widget _distributionRow({
+    required String label,
+    required String value,
+    required double ratio,
+    required Color color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: ratio.clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: AppColors.background,
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendRow({
+    required String label,
+    required int count,
+    required Color color,
+    required int total,
+    double? amount,
+  }) {
+    final share = total == 0 ? 0 : count / total;
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        if (amount != null) ...[
+          Text(
+            formatRupiah(amount),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Text(
+          '$count · ${(share * 100).round()}%',
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _segmentedBar(
+    List<_AnalyticsSlice> slices, {
+    double height = 8,
+  }) {
+    final total = slices.fold<double>(0, (sum, slice) => sum + slice.value);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: SizedBox(
+        height: height,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (total <= 0) {
+              return const ColoredBox(color: AppColors.background);
+            }
+            return Row(
+              children: [
+                for (final slice in slices)
+                  if (slice.value > 0)
+                    SizedBox(
+                      width: constraints.maxWidth * (slice.value / total),
+                      child: ColoredBox(color: slice.color),
+                    ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _analyticsEmpty(String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Center(
+        child: Text(
+          message,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _countShare(int count, int total) {
+    if (total == 0) return '0';
+    return '$count · ${((count / total) * 100).round()}%';
+  }
+
+  String _analyticsDate(DateTime value) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[value.month - 1]} ${value.day}, ${value.year}';
+  }
+
+  Color _analyticsColor(int index) {
+    const palette = [
+      AppColors.primary,
+      AppColors.accepted,
+      AppColors.inProgress,
+      AppColors.pending,
+      AppColors.onHold,
+      AppColors.completed,
+    ];
+    return palette[index % palette.length];
   }
 
   Widget _clientsView() {
@@ -1508,6 +2802,44 @@ class _OfferingsPageState extends State<OfferingsPage> {
       ),
     );
   }
+}
+
+class _AnalyticsKpi {
+  final String label;
+  final String value;
+  final String caption;
+  final IconData icon;
+  final Color color;
+
+  const _AnalyticsKpi({
+    required this.label,
+    required this.value,
+    required this.caption,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _AnalyticsSlice {
+  final String label;
+  final double value;
+  final Color color;
+
+  const _AnalyticsSlice(this.label, this.value, this.color);
+}
+
+class _ClientAggregate {
+  int count = 0;
+  double budget = 0;
+  double paid = 0;
+}
+
+class _UnpaidProject {
+  final Project project;
+  final Offering offering;
+  final double? remaining;
+
+  const _UnpaidProject(this.project, this.offering, this.remaining);
 }
 
 class _ClientRecord {

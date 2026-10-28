@@ -1,11 +1,13 @@
 /// Field teams are split between general field workers and CAD specialists.
 /// A worker can hold more than one type.
-enum WorkerType { field, cad }
+enum WorkerType { field, cad, manager, owner }
 
 extension WorkerTypeX on WorkerType {
   String get label => switch (this) {
     WorkerType.field => 'Field Worker',
     WorkerType.cad => 'CAD',
+    WorkerType.manager => 'Manager',
+    WorkerType.owner => 'Owner',
   };
 }
 
@@ -91,6 +93,10 @@ class User {
     switch (value) {
       case 'cad':
         return WorkerType.cad;
+      case 'manager':
+        return WorkerType.manager;
+      case 'owner':
+        return WorkerType.owner;
       case 'field':
         return WorkerType.field;
       default:
@@ -102,6 +108,10 @@ class User {
     switch (value) {
       case WorkerType.cad:
         return 'cad';
+      case WorkerType.manager:
+        return 'manager';
+      case WorkerType.owner:
+        return 'owner';
       case WorkerType.field:
         return 'field';
     }

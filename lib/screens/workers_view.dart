@@ -124,7 +124,7 @@ class _WorkersViewState extends State<WorkersView> {
       children: [
         const Expanded(
           child: Text(
-            'Field Team',
+            'Members',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w700,
@@ -318,12 +318,7 @@ class _WorkersViewState extends State<WorkersView> {
               alignment: WrapAlignment.end,
               children: [
                 for (final type in worker.workerTypes)
-                  _pill(
-                    type.label,
-                    type == WorkerType.cad
-                        ? AppColors.accepted
-                        : AppColors.primary,
-                  ),
+                  _pill(type.label, _typeColor(type)),
               ],
             ),
     _WCol.email => _plainText(worker.email),
@@ -541,6 +536,13 @@ class _WorkersViewState extends State<WorkersView> {
       style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
     );
   }
+
+  Color _typeColor(WorkerType type) => switch (type) {
+    WorkerType.field => AppColors.primary,
+    WorkerType.cad => AppColors.accepted,
+    WorkerType.manager => AppColors.pending,
+    WorkerType.owner => AppColors.primaryDark,
+  };
 
   Widget _pill(String label, Color color) {
     return Container(

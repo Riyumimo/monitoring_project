@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../models/activity.dart';
 import '../models/offering.dart';
 import '../models/project.dart';
 import '../models/user.dart';
 import '../services/mock_data.dart';
+import '../utils/currency.dart';
 
 /// Holds the in-memory offering and project data used across the app.
 class ProjectProvider extends ChangeNotifier {
   List<Offering> _offerings = [];
   List<Project> _projects = [];
+  final List<OfferingActivity> _activities = [];
   bool _hasLoaded = false;
   bool _isLoading = false;
   String? _error;
@@ -17,6 +20,145 @@ class ProjectProvider extends ChangeNotifier {
   List<Project> get projects => _projects;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  /// Activity feed entries for [offeringId], oldest first.
+  List<OfferingActivity> activitiesFor(String offeringId) {
+    final items = [
+      for (final activity in _activities)
+        if (activity.offeringId == offeringId) activity,
+    ];
+    items.sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
+    return items;
+  }
+
+  Future<void> addActivity(OfferingActivity activity) async {
+    _activities.add(activity);
+    notifyListeners();
+  }
+
+  /// Seeds the activity entries that can be derived from [offering]'s current
+  /// state. Entries whose type already exists are skipped, so this is safe to
+  /// call every time the detail screen opens.
+  Future<void> ensureActivities(
+    Offering offering, {
+    String? contactName,
+  }) async {
+    final existingTypes = <ActivityType>{
+      for (final activity in _activities)
+        if (activity.offeringId == offering.id) activity.type,
+    };
+    final missing = [
+      for (final activity in _seedActivities(offering, contactName))
+        if (!existingTypes.contains(activity.type)) activity,
+    ];
+    if (missing.isEmpty) return;
+    _activities.addAll(missing);
+    notifyListeners();
+  }
+
+  List<OfferingActivity> _seedActivities(
+    Offering offering,
+    String? contactName,
+  ) {
+    final now = DateTime.now();
+    final owner = offering.owner.isEmpty ? 'the client' : offering.owner;
+    final recipient = (contactName?.trim().isNotEmpty ?? false)
+        ? contactName!.trim()
+        : 'the client';
+    final activities = <OfferingActivity>[
+      OfferingActivity(
+        id: 'seed-${offering.id}-created',
+        offeringId: offering.id,
+        type: ActivityType.created,
+        title: 'Offering created',
+        subtitle: 'Draft prepared for $owner',
+        occurredAt: now.subtract(const Duration(days: 4)),
+      ),
+    ];
+
+    if (offering.status != OfferingStatus.draft) {
+      activities.add(
+        OfferingActivity(
+          id: 'seed-${offering.id}-sent',
+          offeringId: offering.id,
+          type: ActivityType.sent,
+          title: 'Proposal sent',
+          subtitle: 'Shared with $recipient',
+          occurredAt: now.subtract(const Duration(days: 3)),
+        ),
+      );
+    }
+
+    switch (offering.status) {
+      case OfferingStatus.accepted:
+        activities.add(
+          OfferingActivity(
+            id: 'seed-${offering.id}-accepted',
+            offeringId: offering.id,
+            type: ActivityType.accepted,
+            title: 'Proposal accepted',
+            subtitle: 'Client approved the offering',
+            occurredAt: now.subtract(const Duration(days: 2)),
+          ),
+        );
+      case OfferingStatus.rejected:
+        activities.add(
+          OfferingActivity(
+            id: 'seed-${offering.id}-rejected',
+            offeringId: offering.id,
+            type: ActivityType.rejected,
+            title: 'Proposal declined',
+            subtitle: 'Client rejected the offering',
+            occurredAt: now.subtract(const Duration(days: 2)),
+          ),
+        );
+      case OfferingStatus.expired:
+        activities.add(
+          OfferingActivity(
+            id: 'seed-${offering.id}-expired',
+            offeringId: offering.id,
+            type: ActivityType.expired,
+            title: 'Offering expired',
+            subtitle: 'The validity period ended',
+            occurredAt: now.subtract(const Duration(days: 2)),
+          ),
+        );
+      case OfferingStatus.draft:
+      case OfferingStatus.sent:
+        break;
+    }
+
+    if (offering.paidStatus != PaidStatus.unpaid) {
+      final fullyPaid = offering.paidStatus == PaidStatus.paid;
+      activities.add(
+        OfferingActivity(
+          id: 'seed-${offering.id}-payment',
+          offeringId: offering.id,
+          type: fullyPaid ? ActivityType.paymentCompleted : ActivityType.payment,
+          title: fullyPaid ? 'Payment completed' : 'Partial payment received',
+          subtitle: fullyPaid
+              ? '${formatRupiah(offering.amountPaid)} settled in full'
+              : '${formatRupiah(offering.amountPaid)} paid so far',
+          occurredAt: now.subtract(const Duration(hours: 20)),
+        ),
+      );
+    }
+
+    if (offering.hasProject) {
+      activities.add(
+        OfferingActivity(
+          id: 'seed-${offering.id}-project',
+          offeringId: offering.id,
+          type: ActivityType.projectCreated,
+          title: 'Project created',
+          subtitle: 'Execution is ready to start',
+          occurredAt: now.subtract(const Duration(days: 1)),
+        ),
+      );
+    }
+
+    return activities;
+  }
 
   Offering? offeringById(String id) {
     for (final offering in _offerings) {
@@ -112,12 +254,23 @@ class ProjectProvider extends ChangeNotifier {
   Future<void> deleteOffering(String id) async {
     await Future.delayed(const Duration(milliseconds: 200));
     _offerings.removeWhere((o) => o.id == id);
+    _activities.removeWhere((activity) => activity.offeringId == id);
     notifyListeners();
   }
 
   Future<void> addProject(Project project) async {
     await Future.delayed(const Duration(milliseconds: 200));
     _projects.add(project);
+    _activities.add(
+      OfferingActivity(
+        id: 'ACT-${project.id}-created',
+        offeringId: project.offeringId,
+        type: ActivityType.projectCreated,
+        title: 'Project created',
+        subtitle: 'Execution is ready to start',
+        occurredAt: DateTime.now(),
+      ),
+    );
     final offering = offeringById(project.offeringId);
     if (offering != null) {
       _offerings = [
@@ -135,6 +288,8 @@ class ProjectProvider extends ChangeNotifier {
               status: o.status,
               paidStatus: o.paidStatus,
               budgetAmount: o.budgetAmount,
+              amountPaid: o.amountPaid,
+              clientHasRecentOffer: o.clientHasRecentOffer,
               rentalUntil: o.rentalUntil,
               projectId: project.id,
             )
