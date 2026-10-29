@@ -8,7 +8,8 @@ import '../models/project.dart';
 import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
 import '../router/app_router.dart';
-import '../services/schema_mock_data.dart';
+import '../screens/client_form_dialog.dart';
+import '../services/client_directory.dart';
 import '../theme/app_theme.dart';
 import '../utils/csv_download.dart';
 import '../utils/currency.dart';
@@ -164,6 +165,22 @@ class _OfferingsPageState extends State<OfferingsPage> {
       context.push(AppRouter.offeringDetail(offering.id));
 
   void _addOffering() => context.push(AppRouter.newOffering);
+
+  Future<void> _addClient() async {
+    final client = await showDialog<ClientRecord>(
+      context: context,
+      builder: (_) => const ClientFormDialog(),
+    );
+    if (client == null || !mounted) return;
+    setState(() {
+      _query = '';
+      _searchController.clear();
+      _searching = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${client.name} added to clients')),
+    );
+  }
 
   void _editOffering(Offering offering) =>
       context.push(AppRouter.offeringEdit(offering.id));
@@ -2218,8 +2235,8 @@ class _OfferingsPageState extends State<OfferingsPage> {
 
   Widget _clientsView() {
     final clients = [
-      for (final row in SchemaMockData.rows('clients'))
-        _ClientRecord.fromRow(row),
+      for (final client in ClientDirectory.all())
+        _ClientRecord.fromClient(client),
     ];
     final q = _query.trim().toLowerCase();
     final filtered = q.isEmpty
@@ -2480,6 +2497,11 @@ class _OfferingsPageState extends State<OfferingsPage> {
               ),
             ],
           ),
+        ),
+        FilledButton.icon(
+          onPressed: _addClient,
+          icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+          label: const Text('Add Client'),
         ),
         if (q.isNotEmpty) _pill('${filtered.length} found', AppColors.primary),
       ],
@@ -2882,6 +2904,19 @@ class _ClientRecord {
       updatedAt: at(12),
     );
   }
+
+  factory _ClientRecord.fromClient(ClientRecord client) => _ClientRecord(
+    number: client.number,
+    type: client.type,
+    name: client.name,
+    contact: client.contactPerson,
+    email: client.email,
+    phone: client.phone,
+    address: client.address,
+    city: client.city,
+    notes: client.notes,
+    updatedAt: client.updatedAt,
+  );
 
   bool get isBusiness => type == 'company' || type == 'organization';
 

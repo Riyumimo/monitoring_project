@@ -497,21 +497,16 @@ pw.Widget _parties({
   required String poNumber,
   required DateTime? poDate,
 }) {
-  final name = client != null && client.name.isNotEmpty
-      ? client.name
-      : offering.owner;
-  final location = client != null && client.location.isNotEmpty
-      ? client.location
-      : offering.address;
-  final contactLine = [
-    if (client != null && client.email.isNotEmpty) client.email,
-    if (client != null && client.phone.isNotEmpty) client.phone,
-  ].join(' | ');
-  final contactLines = <String>[
-    if (client != null && client.contactPerson.isNotEmpty) client.contactPerson,
-    if (contactLine.isNotEmpty) contactLine,
-    if (location.isNotEmpty) location,
-  ];
+  final name = offering.owner.trim().isNotEmpty
+      ? offering.owner.trim()
+      : client?.name ?? '';
+  final location = client == null
+      ? ''
+      : [
+          client.address,
+          client.city,
+        ].where((part) => part.trim().isNotEmpty).join('\n');
+  final billingLines = <String>[if (location.isNotEmpty) location];
 
   return pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -530,9 +525,9 @@ pw.Widget _parties({
                 color: _ink,
               ),
             ),
-            if (contactLines.isNotEmpty) ...[
+            if (billingLines.isNotEmpty) ...[
               pw.SizedBox(height: 4),
-              for (final line in contactLines)
+              for (final line in billingLines)
                 pw.Padding(
                   padding: const pw.EdgeInsets.only(bottom: 1.5),
                   child: pw.Text(
@@ -631,9 +626,7 @@ pw.Widget _itemsTable(List<InvoiceLineItem> items, double? total) {
       for (var i = 0; i < items.length; i++)
         pw.TableRow(
           decoration: pw.BoxDecoration(
-            color: items[i].excludeFromTotal
-                ? _excludedRow
-                : _rowWhite
+            color: items[i].excludeFromTotal ? _excludedRow : _rowWhite,
           ),
           children: [
             _cell(

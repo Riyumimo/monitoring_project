@@ -269,7 +269,9 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     if (_downloadingInvoice) return;
     setState(() => _downloadingInvoice = true);
     try {
-      final client = ClientDirectory.findByName(offering.owner);
+      final client = offering.clientId == null
+          ? ClientDirectory.findByName(offering.owner)
+          : ClientDirectory.findById(offering.clientId!);
       final payments = _payments
           .where((payment) => payment.offeringId == offering.id)
           .toList();
@@ -368,6 +370,7 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
       name: offering.name,
       serviceType: offering.serviceType,
       owner: offering.owner,
+      clientId: offering.clientId,
       address: offering.address,
       latitude: offering.latitude,
       longitude: offering.longitude,
@@ -882,14 +885,15 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         textAlign: TextAlign.center,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          color: AppColors.textSecondary,
-        ).copyWith(
-          fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
-          fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
-        ),
+        style:
+            const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+            ).copyWith(
+              fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
+              fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
+            ),
       ),
     );
   }
@@ -983,8 +987,12 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
                   number,
                   style: TextStyle(
                     fontSize: 10.5,
-                    fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
-                    fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
+                    fontWeight: item.rowBold
+                        ? FontWeight.w900
+                        : FontWeight.w700,
+                    fontStyle: item.rowItalic
+                        ? FontStyle.italic
+                        : FontStyle.normal,
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -1017,7 +1025,9 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
-                  fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
+                  fontStyle: item.rowItalic
+                      ? FontStyle.italic
+                      : FontStyle.normal,
                   color: AppColors.textPrimary,
                 ),
               ),

@@ -205,7 +205,8 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       );
     }
 
-    if (_lineItems.isEmpty) _lineItems.add(_createLineItemDraft(numberText: '1'));
+    if (_lineItems.isEmpty)
+      _lineItems.add(_createLineItemDraft(numberText: '1'));
   }
 
   _LineItemDraft _createLineItemDraft({
@@ -521,6 +522,11 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     final provider = context.read<ProjectProvider>();
     final lineItems = _lineItemsForSave;
     final budgetAmount = lineItems.isEmpty ? null : _lineItemTotal;
+    final owner = _ownerController.text.trim();
+    final selectedClient = ClientDirectory.findByName(owner);
+    final clientId =
+        selectedClient?.id ??
+        (owner == _editing?.owner ? _editing?.clientId : null);
 
     setState(() => _isSaving = true);
 
@@ -532,7 +538,8 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       number: _numberController.text.trim(),
       name: _nameController.text.trim(),
       serviceType: _serviceTypeController.text.trim(),
-      owner: _ownerController.text.trim(),
+      owner: owner,
+      clientId: clientId,
       address: _addressController.text.trim(),
       latitude: _isCalibrationService
           ? null
@@ -583,125 +590,119 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     final isEditing = _isEditing;
     final locationCard = _isCalibrationService
         ? _sectionCard(
-                title: 'Address & Location',
+            title: 'Address & Location',
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.business_outlined,
-                        size: 20,
-                        color: AppColors.primary,
+                  const Icon(
+                    Icons.business_outlined,
+                    size: 20,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Calibration is performed at the office. '
+                      'Latitude and longitude are not required for this service.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        color: AppColors.textSecondary,
                       ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Text(
-                          'Calibration is performed at the office. '
-                          'Latitude and longitude are not required for this service.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.45,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
-              )
+              ),
+            ],
+          )
         : _sectionCard(
-                title: 'Address & Location',
-                children: [
-                  const Text(
-                    'Find the coordinates from the address above, or enter '
-                    'them manually.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.45,
-                      color: AppColors.textSecondary,
-                    ),
+            title: 'Address & Location',
+            children: [
+              const Text(
+                'Find the coordinates from the address above, or enter '
+                'them manually.',
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.45,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _isFindingCoordinates ? null : _findCoordinates,
+                  icon: _isFindingCoordinates
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.2,
+                          ),
+                        )
+                      : const Icon(Icons.travel_explore, size: 18),
+                  label: Text(
+                    _isFindingCoordinates
+                        ? 'Finding coordinates…'
+                        : 'Find Coordinates',
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: _isFindingCoordinates
-                          ? null
-                          : _findCoordinates,
-                      icon: _isFindingCoordinates
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.2,
-                              ),
-                            )
-                          : const Icon(Icons.travel_explore, size: 18),
-                      label: Text(
-                        _isFindingCoordinates
-                            ? 'Finding coordinates…'
-                            : 'Find Coordinates',
-                      ),
+                ),
+              ),
+              if (_coordinateError != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 16,
+                      color: AppColors.onHold,
                     ),
-                  ),
-                  if (_coordinateError != null) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 16,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _coordinateError!,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
                           color: AppColors.onHold,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _coordinateError!,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              height: 1.4,
-                              color: AppColors.onHold,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _latitudeController,
-                          decoration: const InputDecoration(
-                            labelText: 'Latitude',
-                          ),
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                            signed: true,
-                          ),
-                        ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _latitudeController,
+                      decoration: const InputDecoration(labelText: 'Latitude'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                        signed: true,
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _longitudeController,
-                          decoration: const InputDecoration(
-                            labelText: 'Longitude',
-                          ),
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                            signed: true,
-                          ),
-                        ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _longitudeController,
+                      decoration: const InputDecoration(labelText: 'Longitude'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                        signed: true,
                       ),
-                    ],
+                    ),
                   ),
                 ],
-              );
+              ),
+            ],
+          );
     final detailsCard = _offeringDetailsCard(locationCard: locationCard);
 
     return Scaffold(
@@ -739,6 +740,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       ),
     );
   }
+
   Widget _offeringDetailsCard({required Widget locationCard}) {
     final numberField = TextFormField(
       controller: _numberController,
@@ -770,7 +772,10 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       ),
       items: [
         for (final type in _serviceTypeOptions)
-          DropdownMenuItem(value: type, child: Text(type, overflow: TextOverflow.ellipsis)),
+          DropdownMenuItem(
+            value: type,
+            child: Text(type, overflow: TextOverflow.ellipsis),
+          ),
       ],
       onChanged: (value) {
         if (value == null) return;
@@ -922,9 +927,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
                 const SizedBox(height: 16),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: addressField),
-                  ],
+                  children: [Expanded(child: addressField)],
                 ),
                 const SizedBox(height: 16),
                 Align(

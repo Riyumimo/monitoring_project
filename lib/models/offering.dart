@@ -15,6 +15,7 @@ class Offering {
   final String name;
   final String serviceType;
   final String owner;
+  final String? clientId;
   final String address;
   final double? latitude;
   final double? longitude;
@@ -53,6 +54,7 @@ class Offering {
     required this.name,
     this.serviceType = '',
     required this.owner,
+    this.clientId,
     required this.address,
     this.latitude,
     this.longitude,
@@ -118,6 +120,7 @@ class Offering {
       name: json['name'] ?? '',
       serviceType: json['serviceType'] ?? '',
       owner: json['owner'] ?? '',
+      clientId: json['clientId']?.toString(),
       address: json['address'] ?? '',
       latitude: json['latitude']?.toDouble(),
       longitude: json['longitude']?.toDouble(),
@@ -175,6 +178,7 @@ class Offering {
       'name': name,
       'serviceType': serviceType,
       'owner': owner,
+      'clientId': clientId,
       'address': address,
       'latitude': latitude,
       'longitude': longitude,

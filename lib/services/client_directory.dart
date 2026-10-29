@@ -12,6 +12,18 @@ class ClientRecord {
   final String phone;
   final String address;
   final String city;
+  final String relationshipType;
+  final String additionalPhone;
+  final String website;
+  final String taxNumber;
+  final String notes;
+  final String bankName;
+  final String bankAccountName;
+  final String bankAccountNumber;
+  final String paymentMethod;
+  final String paymentTerms;
+  final String accountCode;
+  final String updatedAt;
 
   const ClientRecord({
     required this.id,
@@ -23,6 +35,18 @@ class ClientRecord {
     required this.phone,
     required this.address,
     required this.city,
+    this.relationshipType = 'Client',
+    this.additionalPhone = '',
+    this.website = '',
+    this.taxNumber = '',
+    this.notes = '',
+    this.bankName = '',
+    this.bankAccountName = '',
+    this.bankAccountNumber = '',
+    this.paymentMethod = '',
+    this.paymentTerms = '',
+    this.accountCode = '',
+    this.updatedAt = '',
   });
 
   factory ClientRecord.fromRow(List<String> row) {
@@ -37,6 +61,9 @@ class ClientRecord {
       phone: at(6),
       address: at(7),
       city: at(8),
+      taxNumber: at(9),
+      notes: at(10),
+      updatedAt: at(12),
     );
   }
 
@@ -69,18 +96,40 @@ class ClientDirectory {
   ClientDirectory._();
 
   static const _nameIndex = 3;
+  static final List<ClientRecord> _addedClients = [];
 
   static List<ClientRecord> all() => [
     for (final row in SchemaMockData.rows('clients'))
       if (row.length > _nameIndex && row[_nameIndex].trim().isNotEmpty)
         ClientRecord.fromRow(row),
+    ..._addedClients,
   ];
+
+  static String nextClientNumber() =>
+      'C-${(all().length + 1).toString().padLeft(4, '0')}';
+
+  static bool emailTaken(String email) {
+    final normalized = email.trim().toLowerCase();
+    return normalized.isNotEmpty &&
+        all().any((client) => client.email.trim().toLowerCase() == normalized);
+  }
+
+  static void add(ClientRecord client) {
+    _addedClients.add(client);
+  }
 
   static ClientRecord? findByName(String name) {
     final target = name.trim().toLowerCase();
     if (target.isEmpty) return null;
     for (final client in all()) {
       if (client.name.toLowerCase() == target) return client;
+    }
+    return null;
+  }
+
+  static ClientRecord? findById(String id) {
+    for (final client in all()) {
+      if (client.id == id) return client;
     }
     return null;
   }

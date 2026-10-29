@@ -303,6 +303,7 @@ class ProjectProvider extends ChangeNotifier {
               name: o.name,
               serviceType: o.serviceType,
               owner: o.owner,
+              clientId: o.clientId,
               address: o.address,
               latitude: o.latitude,
               longitude: o.longitude,
