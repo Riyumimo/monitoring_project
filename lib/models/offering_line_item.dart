@@ -1,6 +1,16 @@
+import 'line_item_text_run.dart';
+
 /// One row in an offering's "Description of Work" budget table.
 class OfferingLineItem {
   final String description;
+
+  /// Bold/italic ranges over [description].
+  final List<LineItemTextRun> descriptionRuns;
+
+  /// Applies the selected description formatting to the row number and total.
+  final bool rowBold;
+  final bool rowItalic;
+
   final String qty;
   final String uom;
   final double amount;
@@ -19,6 +29,9 @@ class OfferingLineItem {
 
   const OfferingLineItem({
     required this.description,
+    this.descriptionRuns = const [],
+    this.rowBold = false,
+    this.rowItalic = false,
     this.qty = '',
     this.uom = '',
     required this.amount,
@@ -34,8 +47,21 @@ class OfferingLineItem {
       amount <= 0;
 
   factory OfferingLineItem.fromJson(Map<String, dynamic> json) {
+    final rawRuns = json['descriptionRuns'];
+    final descriptionRuns = rawRuns is List
+        ? rawRuns
+              .whereType<Map>()
+              .map(
+                (run) =>
+                    LineItemTextRun.fromJson(Map<String, dynamic>.from(run)),
+              )
+              .toList(growable: false)
+        : const <LineItemTextRun>[];
     return OfferingLineItem(
       description: json['description']?.toString() ?? '',
+      descriptionRuns: descriptionRuns,
+      rowBold: json['rowBold'] == true,
+      rowItalic: json['rowItalic'] == true,
       qty: json['qty']?.toString() ?? '',
       uom: json['uom']?.toString() ?? '',
       amount: (json['amount'] as num?)?.toDouble() ?? 0,
@@ -48,6 +74,9 @@ class OfferingLineItem {
   Map<String, dynamic> toJson() {
     return {
       'description': description,
+      'descriptionRuns': [for (final run in descriptionRuns) run.toJson()],
+      'rowBold': rowBold,
+      'rowItalic': rowItalic,
       'qty': qty,
       'uom': uom,
       'amount': amount,

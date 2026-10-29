@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../models/line_item_text_run.dart';
 import '../models/offering.dart';
 import '../models/payment.dart';
 import '../utils/currency.dart';
@@ -24,6 +25,7 @@ const PdfColor _panel = PdfColor.fromInt(0xFFF3F8FC);
 const PdfColor _panelAlt = PdfColor.fromInt(0xFFF1F6F9);
 const PdfColor _rowLight = PdfColor.fromInt(0xFFE6F2F9);
 const PdfColor _rowWhite = PdfColor.fromInt(0xFFFCFDFE);
+const PdfColor _excludedRow = PdfColor.fromInt(0xFFDDECF6);
 const PdfColor _footerBlue = PdfColor.fromInt(0xFF5B7BAF);
 
 const String _companyName = 'PT. GEOTERRA INDONESIA';
@@ -61,6 +63,9 @@ const List<String> _months = [
 class InvoiceLineItem {
   final String sn;
   final String description;
+  final List<LineItemTextRun> descriptionRuns;
+  final bool rowBold;
+  final bool rowItalic;
   final String qty;
   final String uom;
   final double? amount;
@@ -73,6 +78,9 @@ class InvoiceLineItem {
   const InvoiceLineItem({
     required this.sn,
     required this.description,
+    this.descriptionRuns = const [],
+    this.rowBold = false,
+    this.rowItalic = false,
     this.qty = '',
     this.uom = '',
     this.amount,
@@ -300,6 +308,9 @@ List<InvoiceLineItem> _defaultItems(Offering offering, double? budget) {
         InvoiceLineItem(
           sn: numbers[index],
           description: offering.lineItems[index].description,
+          descriptionRuns: offering.lineItems[index].descriptionRuns,
+          rowBold: offering.lineItems[index].rowBold,
+          rowItalic: offering.lineItems[index].rowItalic,
           qty: offering.lineItems[index].qty,
           uom: offering.lineItems[index].uom,
           amount: offering.lineItems[index].amount > 0
@@ -619,9 +630,18 @@ pw.Widget _itemsTable(List<InvoiceLineItem> items, double? total) {
       ),
       for (var i = 0; i < items.length; i++)
         pw.TableRow(
-          decoration: pw.BoxDecoration(color: i.isEven ? _rowWhite : _rowLight),
+          decoration: pw.BoxDecoration(
+            color: items[i].excludeFromTotal
+                ? _excludedRow
+                : _rowWhite
+          ),
           children: [
-            _cell(items[i].sn, alignRight: true, bold: items[i].emphasized),
+            _cell(
+              items[i].sn,
+              alignRight: true,
+              bold: items[i].emphasized || items[i].rowBold,
+              italic: items[i].rowItalic,
+            ),
             pw.Padding(
               padding: pw.EdgeInsets.fromLTRB(
                 7 + items[i].indent * 12,
@@ -629,23 +649,15 @@ pw.Widget _itemsTable(List<InvoiceLineItem> items, double? total) {
                 7,
                 4,
               ),
-              child: pw.Text(
-                items[i].description,
-                style: pw.TextStyle(
-                  fontSize: 8.4,
-                  fontWeight: items[i].emphasized
-                      ? pw.FontWeight.bold
-                      : pw.FontWeight.normal,
-                  color: _ink,
-                ),
-              ),
+              child: _invoiceDescription(items[i]),
             ),
             _cell(items[i].qty, alignRight: true, bold: items[i].emphasized),
             _cell(items[i].uom, alignRight: true, bold: items[i].emphasized),
             _cell(
               _amount(items[i].amount),
               alignRight: true,
-              bold: items[i].emphasized,
+              bold: items[i].emphasized || items[i].rowBold,
+              italic: items[i].rowItalic,
             ),
           ],
         ),
@@ -663,10 +675,43 @@ pw.Widget _itemsTable(List<InvoiceLineItem> items, double? total) {
   );
 }
 
+pw.Widget _invoiceDescription(InvoiceLineItem item) {
+  if (item.description.isEmpty) return pw.SizedBox();
+
+  final baseStyle = pw.TextStyle(
+    fontSize: 8.4,
+    fontWeight: item.emphasized ? pw.FontWeight.bold : pw.FontWeight.normal,
+    color: _ink,
+  );
+  final runs = normalizedLineItemTextRuns(
+    item.description,
+    item.descriptionRuns,
+  );
+  if (runs.every((run) => run.isPlain)) {
+    return pw.Text(item.description, style: baseStyle);
+  }
+  return pw.RichText(
+    text: pw.TextSpan(
+      style: baseStyle,
+      children: [
+        for (final run in runs)
+          pw.TextSpan(
+            text: item.description.substring(run.start, run.end),
+            style: pw.TextStyle(
+              fontWeight: run.bold ? pw.FontWeight.bold : null,
+              fontStyle: run.italic ? pw.FontStyle.italic : null,
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 pw.Widget _cell(
   String text, {
   bool header = false,
   bool bold = false,
+  bool italic = false,
   bool alignRight = false,
 }) {
   return pw.Padding(
@@ -677,6 +722,7 @@ pw.Widget _cell(
       style: pw.TextStyle(
         fontSize: header ? 7.5 : 8.4,
         fontWeight: header || bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+        fontStyle: italic ? pw.FontStyle.italic : null,
         color: header ? PdfColors.white : _ink,
         letterSpacing: header ? 0.2 : 0,
       ),

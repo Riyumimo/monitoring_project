@@ -18,6 +18,7 @@ import '../services/invoice_pdf.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency.dart';
 import '../utils/offering_line_items.dart';
+import '../utils/rich_text.dart';
 import '../utils/status_extensions.dart';
 import '../widgets/status_chip.dart';
 
@@ -843,41 +844,37 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
   TableRow _descriptionTableRow(OfferingLineItem item, String number) {
     final description = item.description.trim().isEmpty
         ? 'Untitled work item'
-        : item.description.trim();
+        : item.description;
 
     return TableRow(
+      decoration: item.excludeFromTotal
+          ? BoxDecoration(color: AppColors.inProgress.withValues(alpha: 0.10))
+          : null,
       children: [
-        _descriptionNumber(number, excluded: item.excludeFromTotal),
+        _descriptionNumber(number, item),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
-          child: Text(
-            description,
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.35,
-              fontWeight: FontWeight.w600,
-              color: item.excludeFromTotal
-                  ? AppColors.inProgress
-                  : AppColors.textPrimary,
+          child: Text.rich(
+            lineItemTextSpan(
+              description,
+              item.descriptionRuns,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
         ),
-        _descriptionValue(
-          item.qty,
-          alignment: TextAlign.center,
-          excluded: item.excludeFromTotal,
-        ),
-        _descriptionValue(
-          item.uom,
-          alignment: TextAlign.center,
-          excluded: item.excludeFromTotal,
-        ),
+        _descriptionValue(item.qty, alignment: TextAlign.center),
+        _descriptionValue(item.uom, alignment: TextAlign.center),
         _descriptionAmount(item),
       ],
     );
   }
 
-  Widget _descriptionNumber(String number, {bool excluded = false}) {
+  Widget _descriptionNumber(String number, OfferingLineItem item) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
       child: Text(
@@ -885,10 +882,13 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         textAlign: TextAlign.center,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 10.5,
           fontWeight: FontWeight.w700,
-          color: excluded ? AppColors.inProgress : AppColors.textSecondary,
+          color: AppColors.textSecondary,
+        ).copyWith(
+          fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
+          fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
         ),
       ),
     );
@@ -897,17 +897,16 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
   Widget _descriptionValue(
     String value, {
     TextAlign alignment = TextAlign.start,
-    bool excluded = false,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
       child: Text(
         value.trim().isEmpty ? ' ' : value,
         textAlign: alignment,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: excluded ? AppColors.inProgress : AppColors.textPrimary,
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -923,10 +922,9 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         textAlign: TextAlign.right,
         style: TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: item.excludeFromTotal
-              ? AppColors.inProgress
-              : AppColors.textPrimary,
+          fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
+          fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -961,11 +959,14 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
   ) {
     final description = item.description.trim().isEmpty
         ? 'Untitled work item'
-        : item.description.trim();
+        : item.description;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
       decoration: BoxDecoration(
+        color: item.excludeFromTotal
+            ? AppColors.inProgress.withValues(alpha: 0.10)
+            : null,
         border: index == count - 1
             ? null
             : const Border(bottom: BorderSide(color: AppColors.border)),
@@ -982,23 +983,23 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
                   number,
                   style: TextStyle(
                     fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: item.excludeFromTotal
-                        ? AppColors.inProgress
-                        : AppColors.textSecondary,
+                    fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
+                    fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),
               Expanded(
-                child: Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                    color: item.excludeFromTotal
-                        ? AppColors.inProgress
-                        : AppColors.textPrimary,
+                child: Text.rich(
+                  lineItemTextSpan(
+                    description,
+                    item.descriptionRuns,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ),
@@ -1007,26 +1008,17 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
           const SizedBox(height: 5),
           Row(
             children: [
-              _descriptionMeta(
-                'Qty',
-                item.qty,
-                excluded: item.excludeFromTotal,
-              ),
+              _descriptionMeta('Qty', item.qty),
               const SizedBox(width: 14),
-              _descriptionMeta(
-                'Unit',
-                item.uom,
-                excluded: item.excludeFromTotal,
-              ),
+              _descriptionMeta('Unit', item.uom),
               const Spacer(),
               Text(
                 item.amount > 0 ? formatRupiah(item.amount) : ' ',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: item.excludeFromTotal
-                      ? AppColors.inProgress
-                      : AppColors.textPrimary,
+                  fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
+                  fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],
@@ -1036,21 +1028,23 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     );
   }
 
-  Widget _descriptionMeta(String label, String value, {bool excluded = false}) {
-    final color = excluded ? AppColors.inProgress : AppColors.textSecondary;
+  Widget _descriptionMeta(String label, String value) {
     return Text.rich(
       TextSpan(
         children: [
           TextSpan(
             text: '$label ',
-            style: TextStyle(fontSize: 10.5, color: color),
+            style: const TextStyle(
+              fontSize: 10.5,
+              color: AppColors.textSecondary,
+            ),
           ),
           TextSpan(
             text: value.trim().isEmpty ? ' ' : value,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
-              color: color,
+              color: AppColors.textSecondary,
             ),
           ),
         ],

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/line_item_number_style.dart';
+import '../models/line_item_text_run.dart';
 import '../models/offering.dart';
 import '../models/offering_line_item.dart';
 import '../providers/project_provider.dart';
@@ -14,7 +15,9 @@ import '../services/mock_data.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency.dart';
 import '../utils/offering_line_items.dart';
+import '../utils/rich_text_controller.dart';
 import '../utils/status_extensions.dart';
+import '../widgets/rich_text_shortcuts.dart';
 
 /// Create/edit an **offering** (the proposal sent to a client). Offers are
 /// separate from projects: a project is created later, from an accepted
@@ -59,7 +62,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     final id = widget.offeringId;
     if (id == null) {
       _numberController.text = _nextNumber();
-      _lineItems.add(_LineItemDraft(numberText: '1'));
+      _lineItems.add(_createLineItemDraft(numberText: '1'));
       return;
     }
 
@@ -174,9 +177,12 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       for (var index = 0; index < offering.lineItems.length; index++) {
         final item = offering.lineItems[index];
         _lineItems.add(
-          _LineItemDraft(
+          _createLineItemDraft(
             numberText: labels[index],
             descriptionText: item.description,
+            descriptionRuns: item.descriptionRuns,
+            rowBold: item.rowBold,
+            rowItalic: item.rowItalic,
             qtyText: item.excludeFromTotal ? '' : item.qty,
             uomText: item.excludeFromTotal ? '' : item.uom,
             amountText: formatRupiahInput(item.amount),
@@ -187,7 +193,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       }
     } else if ((offering.budgetAmount ?? 0) > 0) {
       _lineItems.add(
-        _LineItemDraft(
+        _createLineItemDraft(
           numberText: '1',
           descriptionText: offering.name.trim().isEmpty
               ? 'Offering value'
@@ -199,12 +205,41 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       );
     }
 
-    if (_lineItems.isEmpty) _lineItems.add(_LineItemDraft(numberText: '1'));
+    if (_lineItems.isEmpty) _lineItems.add(_createLineItemDraft(numberText: '1'));
+  }
+
+  _LineItemDraft _createLineItemDraft({
+    String numberText = '',
+    String descriptionText = '',
+    List<LineItemTextRun> descriptionRuns = const [],
+    bool rowBold = false,
+    bool rowItalic = false,
+    String qtyText = '',
+    String uomText = '',
+    String amountText = '',
+    int indent = 0,
+    bool excludeFromTotal = false,
+  }) {
+    return _LineItemDraft(
+      numberText: numberText,
+      descriptionText: descriptionText,
+      descriptionRuns: descriptionRuns,
+      rowBold: rowBold,
+      rowItalic: rowItalic,
+      qtyText: qtyText,
+      uomText: uomText,
+      amountText: amountText,
+      indent: indent,
+      excludeFromTotal: excludeFromTotal,
+      onFormatChanged: () {
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   void _addLineItem() {
     setState(() {
-      final draft = _LineItemDraft(
+      final draft = _createLineItemDraft(
         numberText: _nextNumberForNewRow(_lineItems.length, 0),
       );
       _lineItems.add(draft);
@@ -259,7 +294,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       insertAt++;
     }
 
-    final draft = _LineItemDraft(
+    final draft = _createLineItemDraft(
       indent: current.indent,
       numberText: _nextNumberForNewRow(insertAt, current.indent),
     );
@@ -284,7 +319,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
         _lineItems.removeAt(i).dispose();
       }
       if (_lineItems.isEmpty) {
-        _lineItems.add(_LineItemDraft(numberText: '1'));
+        _lineItems.add(_createLineItemDraft(numberText: '1'));
         return;
       }
 
@@ -366,7 +401,10 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     for (final item in _lineItems)
       if (!item.isBlank)
         OfferingLineItem(
-          description: item.description.text.trim(),
+          description: item.description.text,
+          descriptionRuns: item.description.formatRuns,
+          rowBold: item.rowBold,
+          rowItalic: item.rowItalic,
           qty: item.excludeFromTotal ? '' : item.qty.text.trim(),
           uom: item.excludeFromTotal ? '' : item.uom.text.trim(),
           amount: parseRupiah(item.amount.text) ?? 0,
@@ -543,210 +581,9 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isEditing = _isEditing;
-    return Scaffold(
-      appBar: AppBar(title: Text(isEditing ? 'Edit Offering' : 'New Offering')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-          children: [
-            _sectionCard(
-              title: 'Offering Details',
-              children: [
-                TextFormField(
-                  controller: _numberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Offering Number',
-                    prefixIcon: Icon(Icons.tag),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Offering Name',
-                    prefixIcon: Icon(Icons.terrain_outlined),
-                  ),
-                  validator: (value) => (value == null || value.trim().isEmpty)
-                      ? 'Please enter offering name'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('serviceType:${_serviceTypeController.text}'),
-                  initialValue: _serviceTypeController.text.trim().isEmpty
-                      ? null
-                      : _serviceTypeController.text.trim(),
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Service Type',
-                    hintText: 'Select service type',
-                    prefixIcon: Icon(Icons.work_outline),
-                  ),
-                  items: [
-                    for (final type in _serviceTypeOptions)
-                      DropdownMenuItem(
-                        value: type,
-                        child: Text(type, overflow: TextOverflow.ellipsis),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _serviceTypeController.text = value;
-                      if (_isCalibrationService) {
-                        _latitudeController.clear();
-                        _longitudeController.clear();
-                      }
-                    });
-                  },
-                  validator: (value) => (value == null || value.trim().isEmpty)
-                      ? 'Please select service type'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: CheckboxListTile(
-                    value: _useClientTable,
-                    onChanged: (value) => _toggleClientTable(value ?? false),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    title: const Text(
-                      'Choose client from table',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Uncheck to type a new client manually.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.35,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (_useClientTable) ...[
-                  DropdownButtonFormField<String>(
-                    key: ValueKey('client:${_ownerController.text}'),
-                    initialValue: _ownerController.text.trim().isEmpty
-                        ? null
-                        : _ownerController.text.trim(),
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Client / Owner',
-                      hintText: 'Select client',
-                      prefixIcon: Icon(Icons.apartment_outlined),
-                    ),
-                    items: [
-                      for (final name in _clientOptions)
-                        DropdownMenuItem(
-                          value: name,
-                          child: Text(name, overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _ownerController.text = value;
-                        _clientOfferCount = _offerCountFor(value);
-                        _clientHasRecentOffer = _clientOfferCount > 0;
-                      });
-                    },
-                    validator: (value) =>
-                        (value == null || value.trim().isEmpty)
-                        ? 'Please select a client'
-                        : null,
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: CheckboxListTile(
-                      value: _clientHasRecentOffer,
-                      onChanged: (value) {
-                        setState(() => _clientHasRecentOffer = value ?? false);
-                      },
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      title: const Text(
-                        'Client has an offer recently',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      subtitle: Text(
-                        _clientOfferCount == 0
-                            ? 'No other offers found for this client.'
-                            : '$_clientOfferCount other offer(s) found for '
-                                  'this client. Checked automatically; you can '
-                                  'change it.',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          height: 1.35,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ] else
-                  TextFormField(
-                    controller: _ownerController,
-                    decoration: const InputDecoration(
-                      labelText: 'New Client Name',
-                      hintText: 'Type the client name',
-                      prefixIcon: Icon(Icons.person_add_alt_1_outlined),
-                    ),
-                    textInputAction: TextInputAction.next,
-                    validator: (value) =>
-                        (value == null || value.trim().isEmpty)
-                        ? 'Please enter the new client name'
-                        : null,
-                  ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Address',
-                    prefixIcon: Icon(Icons.place_outlined),
-                  ),
-                  textInputAction: TextInputAction.search,
-                  onChanged: (_) {
-                    if (_coordinateError != null) {
-                      setState(() => _coordinateError = null);
-                    }
-                  },
-                  onFieldSubmitted: (_) => _findCoordinates(),
-                  validator: (value) => (value == null || value.trim().isEmpty)
-                      ? 'Please enter address'
-                      : null,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _budgetCard(),
-            const SizedBox(height: 16),
-            if (_isCalibrationService)
-              _sectionCard(
-                title: 'Location',
+    final locationCard = _isCalibrationService
+        ? _sectionCard(
+                title: 'Address & Location',
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,9 +609,8 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
                   ),
                 ],
               )
-            else
-              _sectionCard(
-                title: 'Location',
+        : _sectionCard(
+                title: 'Address & Location',
                 children: [
                   const Text(
                     'Find the coordinates from the address above, or enter '
@@ -865,33 +701,244 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
                     ],
                   ),
                 ],
-              ),
+              );
+    final detailsCard = _offeringDetailsCard(locationCard: locationCard);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(isEditing ? 'Edit Offering' : 'New Offering')),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _isSaving ? null : _saveOffering,
+        icon: _isSaving
+            ? const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.2,
+                ),
+              )
+            : const Icon(Icons.save_outlined),
+        label: Text(isEditing ? 'Save Changes' : 'Save Offering'),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+          children: [
+            detailsCard,
+            const SizedBox(height: 16),
+            _budgetCard(),
+            const SizedBox(height: 16),
             if (_isRentalService) ...[
               const SizedBox(height: 16),
               _rentalCard(),
             ],
-            const SizedBox(height: 16),
-            _statusCard(),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _saveOffering,
-                child: _isSaving
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2.4,
-                        ),
-                      )
-                    : Text(isEditing ? 'Save Changes' : 'Save Offering'),
-              ),
-            ),
           ],
         ),
       ),
+    );
+  }
+  Widget _offeringDetailsCard({required Widget locationCard}) {
+    final numberField = TextFormField(
+      controller: _numberController,
+      decoration: const InputDecoration(
+        labelText: 'Offering Number',
+        prefixIcon: Icon(Icons.tag),
+      ),
+    );
+    final nameField = TextFormField(
+      controller: _nameController,
+      decoration: const InputDecoration(
+        labelText: 'Offering Name',
+        prefixIcon: Icon(Icons.terrain_outlined),
+      ),
+      validator: (value) => (value == null || value.trim().isEmpty)
+          ? 'Please enter offering name'
+          : null,
+    );
+    final serviceTypeField = DropdownButtonFormField<String>(
+      key: ValueKey('serviceType:${_serviceTypeController.text}'),
+      initialValue: _serviceTypeController.text.trim().isEmpty
+          ? null
+          : _serviceTypeController.text.trim(),
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Service Type',
+        hintText: 'Select service type',
+        prefixIcon: Icon(Icons.work_outline),
+      ),
+      items: [
+        for (final type in _serviceTypeOptions)
+          DropdownMenuItem(value: type, child: Text(type, overflow: TextOverflow.ellipsis)),
+      ],
+      onChanged: (value) {
+        if (value == null) return;
+        setState(() {
+          _serviceTypeController.text = value;
+          if (_isCalibrationService) {
+            _latitudeController.clear();
+            _longitudeController.clear();
+          }
+        });
+      },
+      validator: (value) => (value == null || value.trim().isEmpty)
+          ? 'Please select service type'
+          : null,
+    );
+    final clientSourceSuffix = Tooltip(
+      message: 'Choose client from table',
+      child: SizedBox(
+        height: 56,
+        width: 48,
+        child: Center(
+          child: Checkbox(
+            value: _useClientTable,
+            onChanged: (value) => _toggleClientTable(value ?? false),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+          ),
+        ),
+      ),
+    );
+    final clientField = _useClientTable
+        ? Column(
+            children: [
+              DropdownButtonFormField<String>(
+                key: ValueKey('client:${_ownerController.text}'),
+                initialValue: _ownerController.text.trim().isEmpty
+                    ? null
+                    : _ownerController.text.trim(),
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Client / Owner',
+                  hintText: 'Select client',
+                  prefixIcon: Icon(Icons.apartment_outlined),
+                ),
+                items: [
+                  for (final name in _clientOptions)
+                    DropdownMenuItem(
+                      value: name,
+                      child: Text(name, overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _ownerController.text = value;
+                    _clientOfferCount = _offerCountFor(value);
+                    _clientHasRecentOffer = _clientOfferCount > 0;
+                  });
+                },
+                validator: (value) => (value == null || value.trim().isEmpty)
+                    ? 'Please select a client'
+                    : null,
+              ),
+            ],
+          )
+        : TextFormField(
+            controller: _ownerController,
+            decoration: const InputDecoration(
+              labelText: 'New Client Name',
+              hintText: 'Type the client name',
+              prefixIcon: Icon(Icons.person_add_alt_1_outlined),
+            ),
+            textInputAction: TextInputAction.next,
+            validator: (value) => (value == null || value.trim().isEmpty)
+                ? 'Please enter the new client name'
+                : null,
+          );
+    final clientInputWithToggle = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: clientField),
+        const SizedBox(width: 8),
+        clientSourceSuffix,
+      ],
+    );
+    final addressField = TextFormField(
+      controller: _addressController,
+      decoration: const InputDecoration(
+        labelText: 'Address',
+        prefixIcon: Icon(Icons.place_outlined),
+      ),
+      textInputAction: TextInputAction.search,
+      onChanged: (_) {
+        if (_coordinateError != null) setState(() => _coordinateError = null);
+      },
+      onFieldSubmitted: (_) => _findCoordinates(),
+      validator: (value) => (value == null || value.trim().isEmpty)
+          ? 'Please enter address'
+          : null,
+    );
+
+    final leftColumn = <Widget>[
+      numberField,
+      const SizedBox(height: 16),
+      nameField,
+      const SizedBox(height: 16),
+      serviceTypeField,
+    ];
+    final rightColumn = <Widget>[
+      clientInputWithToggle,
+      const SizedBox(height: 16),
+      addressField,
+    ];
+
+    return _sectionCard(
+      title: 'Offering Details',
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 760) {
+              return Column(
+                children: [
+                  ...leftColumn,
+                  const SizedBox(height: 16),
+                  ...rightColumn,
+                  const SizedBox(height: 16),
+                  locationCard,
+                ],
+              );
+            }
+            return Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: numberField),
+                    const SizedBox(width: 20),
+                    Expanded(child: clientInputWithToggle),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: nameField),
+                    const SizedBox(width: 20),
+                    Expanded(child: serviceTypeField),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: addressField),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: (constraints.maxWidth - 20) / 2,
+                    child: locationCard,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -904,9 +951,10 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
           'level control to nest an item under the row above; nesting is '
           'optional. Tick Exclude for a section row that should not add its '
           'own total to the budget. The total below becomes the offering '
-          'budget. Press Enter in the Total field to add the next row. Type a '
-          'starting number in any No. cell, such as 1, a or A, and the rows '
-          'below it at the same level are numbered automatically.',
+          'budget. Press Enter in the Total field to add the next row. Select '
+          'description text and press Ctrl+B for bold or Ctrl+I for italic. '
+          'Type a starting number in any No. cell, such as 1, a or A, and the '
+          'rows below it at the same level are numbered automatically.',
           style: TextStyle(
             fontSize: 13,
             height: 1.45,
@@ -1017,16 +1065,22 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
   TableRow _lineItemTableRow(int index) {
     final item = _lineItems[index];
     return TableRow(
+      decoration: item.excludeFromTotal
+          ? BoxDecoration(color: AppColors.inProgress.withValues(alpha: 0.10))
+          : null,
       children: [
         Center(child: _nestingButton(index)),
         _numberField(index),
-        _tableField(
-          item.description,
-          hintText: 'Enter work description',
-          maxLines: 2,
-          focusNode: item.descriptionFocus,
-          textInputAction: TextInputAction.next,
-          validator: (_) => _validateLineItemDescription(item),
+        RichTextShortcuts(
+          controller: item.description,
+          child: _tableField(
+            item.description,
+            hintText: 'Enter work description',
+            maxLines: 2,
+            focusNode: item.descriptionFocus,
+            textInputAction: TextInputAction.next,
+            validator: (_) => _validateLineItemDescription(item),
+          ),
         ),
         _tableField(
           item.qty,
@@ -1048,6 +1102,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
           hintText: '0',
           prefixText: 'Rp ',
           textAlign: TextAlign.right,
+          style: _rowTextStyle(item),
           keyboardType: TextInputType.number,
           inputFormatters: const [RupiahInputFormatter()],
           textInputAction: TextInputAction.done,
@@ -1070,7 +1125,8 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       maxLines: 1,
       style: TextStyle(
         fontSize: compact ? 13 : 10.5,
-        fontWeight: FontWeight.w700,
+        fontWeight: item.rowBold ? FontWeight.w900 : FontWeight.w700,
+        fontStyle: item.rowItalic ? FontStyle.italic : FontStyle.normal,
         color: AppColors.textSecondary,
       ),
       keyboardType: TextInputType.text,
@@ -1096,6 +1152,13 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
         );
       },
       onChanged: (_) => _autoFillNumbers(index),
+    );
+  }
+
+  TextStyle _rowTextStyle(_LineItemDraft item) {
+    return TextStyle(
+      fontWeight: item.rowBold ? FontWeight.w900 : null,
+      fontStyle: item.rowItalic ? FontStyle.italic : null,
     );
   }
 
@@ -1165,6 +1228,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     TextAlign textAlign = TextAlign.start,
     TextInputType? keyboardType,
     TextInputAction? textInputAction,
+    TextStyle? style,
     FocusNode? focusNode,
     List<TextInputFormatter>? inputFormatters,
     ValueChanged<String>? onChanged,
@@ -1184,6 +1248,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       minLines: 1,
       textAlign: textAlign,
       textAlignVertical: TextAlignVertical.center,
+      style: style,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
       inputFormatters: inputFormatters,
@@ -1217,6 +1282,9 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
+        color: item.excludeFromTotal
+            ? AppColors.inProgress.withValues(alpha: 0.10)
+            : null,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
@@ -1248,17 +1316,20 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          TextFormField(
+          RichTextShortcuts(
             controller: item.description,
-            focusNode: item.descriptionFocus,
-            decoration: const InputDecoration(
-              labelText: 'Description of work',
-              hintText: 'Enter work description',
+            child: TextFormField(
+              controller: item.description,
+              focusNode: item.descriptionFocus,
+              decoration: const InputDecoration(
+                labelText: 'Description of work',
+                hintText: 'Enter work description',
+              ),
+              maxLines: 2,
+              minLines: 1,
+              textInputAction: TextInputAction.next,
+              validator: (_) => _validateLineItemDescription(item),
             ),
-            maxLines: 2,
-            minLines: 1,
-            textInputAction: TextInputAction.next,
-            validator: (_) => _validateLineItemDescription(item),
           ),
           const SizedBox(height: 10),
           Row(
@@ -1318,6 +1389,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
               prefixText: 'Rp ',
               hintText: '0',
             ),
+            style: _rowTextStyle(item),
             keyboardType: TextInputType.number,
             textInputAction: TextInputAction.done,
             inputFormatters: const [RupiahInputFormatter()],
@@ -1442,135 +1514,6 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     );
   }
 
-  Widget _statusCard() {
-    final accepted = _status == OfferingStatus.accepted;
-    return _sectionCard(
-      title: 'Status',
-      children: [
-        DropdownButtonFormField<OfferingStatus>(
-          key: ValueKey('status:$_status'),
-          initialValue: _status,
-          decoration: const InputDecoration(
-            labelText: 'Offering Status',
-            prefixIcon: Icon(Icons.flag_outlined),
-          ),
-          items: OfferingStatus.values
-              .map(
-                (status) =>
-                    DropdownMenuItem(value: status, child: Text(status.label)),
-              )
-              .toList(),
-          onChanged: (value) {
-            if (value != null) setState(() => _status = value);
-          },
-        ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<PaidStatus>(
-          key: ValueKey('paid:$_paidStatus'),
-          initialValue: _paidStatus,
-          decoration: const InputDecoration(
-            labelText: 'Paid Status',
-            prefixIcon: Icon(Icons.payments_outlined),
-          ),
-          items: PaidStatus.values
-              .map(
-                (status) =>
-                    DropdownMenuItem(value: status, child: Text(status.label)),
-              )
-              .toList(),
-          onChanged: (value) {
-            if (value != null) setState(() => _paidStatus = value);
-          },
-        ),
-        const SizedBox(height: 16),
-        _projectGate(accepted),
-      ],
-    );
-  }
-
-  Widget _projectGate(bool accepted) {
-    if (_isRentalService) {
-      return _infoNote(
-        'Rent Tool offerings do not create a project. Set the rental until '
-        'date instead.',
-        AppColors.primary,
-      );
-    }
-
-    final projectId = _editing == null
-        ? null
-        : context
-              .watch<ProjectProvider>()
-              .offeringById(_editing!.id)
-              ?.projectId;
-    if (projectId != null) {
-      return SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: OutlinedButton.icon(
-          onPressed: () => context.push(AppRouter.projectDetail(projectId)),
-          icon: const Icon(Icons.folder_open_outlined, size: 18),
-          label: const Text('Open Project'),
-        ),
-      );
-    }
-
-    if (!accepted) {
-      return _infoNote(
-        'A project can only be created after the offering is accepted.',
-        AppColors.pending,
-      );
-    }
-
-    if (!_isEditing) {
-      return _infoNote(
-        'Save the offering, then create its project from the offering page.',
-        AppColors.accepted,
-      );
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: FilledButton.icon(
-        onPressed: _isSaving
-            ? null
-            : () => context.push(AppRouter.newProject(_editing!.id)),
-        icon: const Icon(Icons.rocket_launch_outlined, size: 18),
-        label: const Text('Create Project'),
-      ),
-    );
-  }
-
-  Widget _infoNote(String message, Color color) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.info_outline, size: 18, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _sectionCard({required String title, required List<Widget> children}) {
     return Card(
       child: Padding(
@@ -1630,21 +1573,33 @@ class _LineItemDraft {
   _LineItemDraft({
     String numberText = '',
     String descriptionText = '',
+    List<LineItemTextRun> descriptionRuns = const [],
+    this.rowBold = false,
+    this.rowItalic = false,
     String qtyText = '',
     String uomText = '',
     String amountText = '',
     this.indent = 0,
     this.excludeFromTotal = false,
+    required VoidCallback onFormatChanged,
   }) : number = TextEditingController(text: numberText),
-       description = TextEditingController(text: descriptionText),
+       description = RichTextEditingController(
+         text: descriptionText,
+         runs: descriptionRuns,
+       ),
        qty = TextEditingController(text: qtyText),
        uom = TextEditingController(text: uomText),
        amount = TextEditingController(text: amountText) {
+    description.onFormatChanged = ({bold, italic}) {
+      if (bold != null) rowBold = bold;
+      if (italic != null) rowItalic = italic;
+      onFormatChanged();
+    };
     numberFocus.addListener(_selectNumberOnFocus);
   }
 
   final TextEditingController number;
-  final TextEditingController description;
+  final RichTextEditingController description;
   final TextEditingController qty;
   final TextEditingController uom;
   final TextEditingController amount;
@@ -1652,6 +1607,8 @@ class _LineItemDraft {
   final FocusNode descriptionFocus = FocusNode();
   int indent;
   bool excludeFromTotal;
+  bool rowBold;
+  bool rowItalic;
 
   bool get isBlank =>
       description.text.trim().isEmpty &&

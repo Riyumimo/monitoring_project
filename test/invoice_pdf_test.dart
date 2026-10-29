@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geoterra_monitoring/models/line_item_text_run.dart';
 import 'package:geoterra_monitoring/models/offering.dart';
 import 'package:geoterra_monitoring/models/offering_line_item.dart';
 import 'package:geoterra_monitoring/models/payment.dart';
@@ -70,6 +71,10 @@ void main() {
         lineItems: const [
           OfferingLineItem(
             description: 'Field survey',
+            descriptionRuns: [
+              LineItemTextRun(start: 0, end: 5, bold: true),
+              LineItemTextRun(start: 6, end: 12, italic: true),
+            ],
             qty: '1',
             uom: 'Lot',
             amount: 30000000,
