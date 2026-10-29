@@ -1,5 +1,6 @@
 import '../models/offering.dart';
 import '../models/offering_line_item.dart';
+import '../models/offering_term.dart';
 import '../models/project.dart';
 import '../models/tool_asset.dart';
 import '../models/user.dart';
@@ -172,6 +173,11 @@ class MockData {
         status: OfferingStatus.accepted,
         paidStatus: PaidStatus.partiallyPaid,
         budgetAmount: 150000000,
+        terms: const [
+          OfferingTerm(name: 'Down payment', percentage: 30, amount: 45000000),
+          OfferingTerm(name: 'Field work completed', percentage: 40, amount: 60000000),
+          OfferingTerm(name: 'Final delivery', percentage: 30, amount: 45000000),
+        ],
         lineItems: const [
           OfferingLineItem(description: 'Field survey', amount: 0),
           OfferingLineItem(

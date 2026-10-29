@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../models/activity.dart';
 import '../models/offering.dart';
 import '../models/offering_line_item.dart';
+import '../models/offering_term.dart';
 import '../models/payment.dart';
 import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
@@ -21,6 +22,8 @@ import '../utils/offering_line_items.dart';
 import '../utils/rich_text.dart';
 import '../utils/status_extensions.dart';
 import '../widgets/status_chip.dart';
+
+const Object _fullInvoiceChoice = Object();
 
 /// Offering detail page styled as a responsive management dashboard.
 ///
@@ -265,8 +268,109 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     }
   }
 
+  Widget _invoiceChoiceTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required double? amount,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 20, color: AppColors.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              ],
+            )),
+            const SizedBox(width: 8),
+            Text(
+              amount == null ? 'N/A' : formatRupiah(amount),
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Future<void> _downloadInvoice(Offering offering) async {
     if (_downloadingInvoice) return;
+    OfferingTerm? selectedTerm;
+    if (offering.terms.isNotEmpty) {
+      final choice = await showDialog<Object?>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Choose invoice'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Choose the full offering or a payment milestone.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                const SizedBox(height: 16),
+                _invoiceChoiceTile(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Full offering invoice',
+                  subtitle: 'Entire contract amount',
+                  amount: offering.budgetAmount,
+                  onTap: () => Navigator.pop(dialogContext, _fullInvoiceChoice),
+                ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  child: SingleChildScrollView(
+                    child: Column(children: [
+                      for (final term in offering.terms) ...[
+                        _invoiceChoiceTile(
+                          icon: Icons.payments_outlined,
+                          title: term.name,
+                          subtitle: '${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}% of offering',
+                          amount: term.amount,
+                          onTap: () => Navigator.pop(dialogContext, term),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          ],
+        ),
+      );
+      if (choice == null) return;
+      if (choice is OfferingTerm) selectedTerm = choice;
+      if (!mounted) return;
+    }
     setState(() => _downloadingInvoice = true);
     try {
       final client = offering.clientId == null
@@ -279,9 +383,16 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         offering: offering,
         client: client,
         payments: payments,
+        invoiceTitle: selectedTerm == null ? 'INVOICE' : 'INVOICE TERMIN',
+        invoiceSubtitle: selectedTerm == null
+            ? 'TAGIHAN'
+            : 'TAGIHAN ${selectedTerm.name}',
+        invoiceAmount: selectedTerm?.amount,
       );
       final saved = await saveInvoiceFile(
-        fileName: invoicePdfFileName(offering),
+        fileName: selectedTerm == null
+            ? invoicePdfFileName(offering)
+            : '${invoicePdfFileName(offering).replaceAll('.pdf', '')}-${selectedTerm.name.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-').toLowerCase()}.pdf',
         bytes: bytes,
         mimeType: 'application/pdf',
       );
@@ -378,6 +489,7 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
       paidStatus: paidStatus ?? offering.paidStatus,
       budgetAmount: offering.budgetAmount,
       lineItems: offering.lineItems,
+      terms: offering.terms,
       numberingStyle: offering.numberingStyle,
       amountPaid: amountPaid ?? offering.amountPaid,
       clientHasRecentOffer: offering.clientHasRecentOffer,
@@ -599,7 +711,11 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
               ),
             ),
             const SizedBox(width: 24),
-            Expanded(flex: 7, child: _descriptionCard(offering)),
+            Expanded(flex: 7, child: Column(children: [
+              _descriptionCard(offering),
+              const SizedBox(height: 20),
+              _termsCard(offering),
+            ])),
           ],
         ),
       ],
@@ -625,8 +741,43 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         _recentActivityCard(offering),
         const SizedBox(height: 20),
         _descriptionCard(offering),
+        const SizedBox(height: 20),
+        _termsCard(offering),
       ],
     );
+  }
+
+  Widget _termsCard(Offering offering) {
+    return _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const _Eyebrow('Payment Terms'),
+      const SizedBox(height: 6),
+      const Divider(height: 1),
+      const SizedBox(height: 14),
+      if (offering.terms.isEmpty)
+        const Text('No payment terms recorded.', style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary))
+      else
+        LayoutBuilder(builder: (context, constraints) => constraints.maxWidth >= 480
+          ? Table(
+              border: TableBorder.all(color: AppColors.border),
+              columnWidths: const {0: FlexColumnWidth(4), 1: FixedColumnWidth(80), 2: FixedColumnWidth(140)},
+              children: [
+                TableRow(decoration: BoxDecoration(color: AppColors.background.withValues(alpha: 0.72)), children: const [
+                  _DescriptionHeader('MILESTONE'), _DescriptionHeader('%', alignment: TextAlign.center), _DescriptionHeader('AMOUNT', alignment: TextAlign.right),
+                ]),
+                for (final term in offering.terms)
+                  TableRow(children: [
+                    Padding(padding: const EdgeInsets.all(10), child: Text(term.name, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+                    _descriptionValue('${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}%', alignment: TextAlign.center),
+                    _descriptionValue(formatRupiah(term.amount), alignment: TextAlign.right),
+                  ]),
+              ],
+            )
+          : Column(children: [for (final term in offering.terms) ListTile(
+              contentPadding: EdgeInsets.zero, title: Text(term.name),
+              subtitle: Text('${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}%'),
+              trailing: Text(formatRupiah(term.amount), style: const TextStyle(fontWeight: FontWeight.w700)),
+            )])),
+    ]));
   }
 
   Widget _overviewCard(Offering offering) {

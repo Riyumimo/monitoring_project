@@ -1,5 +1,6 @@
 import 'line_item_number_style.dart';
 import 'offering_line_item.dart';
+import 'offering_term.dart';
 
 enum OfferingStatus { draft, sent, accepted, rejected, expired }
 
@@ -27,6 +28,7 @@ class Offering {
   /// offering budget; rows marked [OfferingLineItem.excludeFromTotal] are
   /// omitted. Older records may have a budget with no rows yet.
   final List<OfferingLineItem> lineItems;
+  final List<OfferingTerm> terms;
 
   /// Fallback numbering style for rows that do not have a manually typed
   /// number label. Used by older records; the offering form stores per-row
@@ -62,6 +64,7 @@ class Offering {
     this.paidStatus = PaidStatus.unpaid,
     this.budgetAmount,
     this.lineItems = const [],
+    this.terms = const [],
     this.numberingStyle = LineItemNumberStyle.numeric,
     double? amountPaid,
     this.clientHasRecentOffer = false,
@@ -128,6 +131,10 @@ class Offering {
       paidStatus: _paidStatusFromString(json['paidStatus'] ?? 'unpaid'),
       budgetAmount: storedBudget ?? _lineItemsTotal(lineItems),
       lineItems: lineItems,
+      terms: (json['terms'] as List? ?? const [])
+          .whereType<Map>()
+          .map((term) => OfferingTerm.fromJson(Map<String, dynamic>.from(term)))
+          .toList(growable: false),
       numberingStyle: LineItemNumberStyle.fromStorage(
         json['numberingStyle']?.toString(),
       ),
@@ -186,6 +193,7 @@ class Offering {
       'paidStatus': _paidStatusToString(paidStatus),
       'budgetAmount': budgetAmount,
       'lineItems': [for (final item in lineItems) item.toJson()],
+      'terms': [for (final term in terms) term.toJson()],
       'numberingStyle': numberingStyle.name,
       'amountPaid': amountPaid,
       'clientHasRecentOffer': clientHasRecentOffer,

@@ -7,6 +7,7 @@ import '../models/line_item_number_style.dart';
 import '../models/line_item_text_run.dart';
 import '../models/offering.dart';
 import '../models/offering_line_item.dart';
+import '../models/offering_term.dart';
 import '../providers/project_provider.dart';
 import '../router/app_router.dart';
 import '../services/client_directory.dart';
@@ -41,6 +42,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
   final _latitudeController = TextEditingController();
   final _longitudeController = TextEditingController();
   final List<_LineItemDraft> _lineItems = [];
+  final List<_TermDraft> _terms = [];
 
   OfferingStatus _status = OfferingStatus.draft;
   PaidStatus _paidStatus = PaidStatus.unpaid;
@@ -152,6 +154,10 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     _ownerController.text = offering.owner;
     _addressController.text = offering.address;
     _setLineItems(offering);
+    _terms.clear();
+    for (final term in offering.terms) {
+      _terms.add(_TermDraft(term.name, term.percentage.toStringAsFixed(0)));
+    }
     _useClientTable = ClientDirectory.findByName(offering.owner) != null;
     _clientHasRecentOffer = offering.clientHasRecentOffer;
     _clientOfferCount = _offerCountFor(offering.owner);
@@ -167,6 +173,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     for (final item in _lineItems) {
       item.dispose();
     }
+    for (final term in _terms) { term.dispose(); }
     _lineItems.clear();
 
     if (offering.lineItems.isNotEmpty) {
@@ -551,6 +558,17 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       paidStatus: _paidStatus,
       budgetAmount: budgetAmount,
       lineItems: lineItems,
+      terms: [
+        for (final term in _terms)
+          if (term.name.text.trim().isNotEmpty)
+            OfferingTerm(
+              name: term.name.text.trim(),
+              percentage: double.tryParse(term.percentage.text) ?? 0,
+              amount: budgetAmount == null
+                  ? 0
+                  : budgetAmount * (double.tryParse(term.percentage.text) ?? 0) / 100,
+            ),
+      ],
       numberingStyle: _numberStyle,
       amountPaid: _editing == null || _paidStatus != _editing!.paidStatus
           ? null
@@ -730,6 +748,8 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
             detailsCard,
             const SizedBox(height: 16),
             _budgetCard(),
+            const SizedBox(height: 16),
+            _termsCard(),
             const SizedBox(height: 16),
             if (_isRentalService) ...[
               const SizedBox(height: 16),
@@ -1011,6 +1031,32 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
             );
           },
         ),
+      ],
+    );
+  }
+
+  Widget _termsCard() {
+    return _sectionCard(
+      title: 'Payment Terms',
+      children: [
+        const Text(
+          'Split the offering budget into payment milestones. Amounts are calculated from the budget.',
+          style: TextStyle(fontSize: 13, height: 1.45, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        for (var i = 0; i < _terms.length; i++) ...[
+          Row(children: [
+            Expanded(child: TextFormField(controller: _terms[i].name, decoration: InputDecoration(labelText: 'Milestone ${i + 1}', hintText: 'e.g. Down payment'))),
+            const SizedBox(width: 12),
+            SizedBox(width: 110, child: TextFormField(controller: _terms[i].percentage, keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))], decoration: const InputDecoration(labelText: 'Percent', suffixText: '%'))),
+            IconButton(tooltip: 'Remove milestone', onPressed: () => setState(() => _terms.removeAt(i).dispose()), icon: const Icon(Icons.delete_outline)),
+          ]),
+          const SizedBox(height: 8),
+        ],
+        Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(
+          onPressed: () => setState(() => _terms.add(_TermDraft('Termin ${_terms.length + 1}', ''))),
+          icon: const Icon(Icons.add, size: 18), label: const Text('Add payment term'),
+        )),
       ],
     );
   }
@@ -1570,6 +1616,15 @@ class _LineItemHeaderCell extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TermDraft {
+  final TextEditingController name;
+  final TextEditingController percentage;
+  _TermDraft(String label, String percent)
+    : name = TextEditingController(text: label),
+      percentage = TextEditingController(text: percent);
+  void dispose() { name.dispose(); percentage.dispose(); }
 }
 
 class _LineItemDraft {
