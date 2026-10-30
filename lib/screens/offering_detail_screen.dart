@@ -2672,6 +2672,14 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
 
 typedef _PoDetails = ({String number, DateTime date});
 
+String _poFieldRequiredMessage(BuildContext context, {required bool isDate}) {
+  final isIndonesian = Localizations.localeOf(context).languageCode == 'id';
+  if (isDate) {
+    return isIndonesian ? 'Tanggal PO wajib diisi.' : 'PO date is required.';
+  }
+  return isIndonesian ? 'Nomor PO wajib diisi.' : 'PO number is required.';
+}
+
 class _PoDetailsDialog extends StatefulWidget {
   const _PoDetailsDialog();
 
@@ -2738,14 +2746,14 @@ class _PoDetailsDialogState extends State<_PoDetailsDialog> {
                 ),
                 validator: (value) =>
                     (value?.trim().isEmpty ?? true)
-                    ? localizations.requiredText
+                    ? _poFieldRequiredMessage(context, isDate: false)
                     : null,
                 onFieldSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: 12),
               FormField<DateTime>(
                 validator: (value) => value == null
-                    ? localizations.requiredText
+                    ? _poFieldRequiredMessage(context, isDate: true)
                     : null,
                 builder: (field) => Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

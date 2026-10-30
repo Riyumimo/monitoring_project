@@ -563,7 +563,7 @@ pw.Widget _parties({
         flex: 53,
         child: _panelBox(
           title: 'DITAGIHKAN KEPADA',
-          height: 78,
+          height: 85,
           children: [
             pw.Text(
               name,
@@ -592,7 +592,7 @@ pw.Widget _parties({
         flex: 47,
         child: _panelBox(
           title: 'INFORMASI INVOICE',
-          height: 78,
+          height: 85,
           children: [
             _infoRow('Nomor Invoice', invoiceNumber),
             _infoRow('Tanggal Invoice', _formatDate(date)),
@@ -664,10 +664,10 @@ pw.Widget _itemsTable(List<InvoiceLineItem> items, double? total) {
       pw.TableRow(
         decoration: const pw.BoxDecoration(color: _navy),
         children: [
-          _cell('S/N', header: true, alignRight: true),
+          _cell('S/N', header: true, alignCenter: true),
           _cell('Description of Work', header: true),
-          _cell('Qty', header: true, alignRight: true),
-          _cell('UOM', header: true, alignRight: true),
+          _cell('Qty', header: true, alignCenter: true),
+          _cell('UOM', header: true, alignCenter: true),
           _cell('Amount (IDR)', header: true, alignRight: true),
         ],
       ),
@@ -679,21 +679,13 @@ pw.Widget _itemsTable(List<InvoiceLineItem> items, double? total) {
           children: [
             _cell(
               items[i].sn,
-              alignRight: true,
+              alignCenter: true,
               bold: items[i].emphasized || items[i].rowBold,
               italic: items[i].rowItalic,
             ),
-            pw.Padding(
-              padding: pw.EdgeInsets.fromLTRB(
-                7 + items[i].indent * 12,
-                4,
-                7,
-                4,
-              ),
-              child: _invoiceDescription(items[i]),
-            ),
-            _cell(items[i].qty, alignRight: true, bold: items[i].emphasized),
-            _cell(items[i].uom, alignRight: true, bold: items[i].emphasized),
+            _cell(items[i].description, bold: items[i].emphasized || items[i].rowBold, italic: items[i].rowItalic),
+            _cell(items[i].qty, alignCenter: true, bold: items[i].emphasized),
+            _cell(items[i].uom, alignCenter: true, bold: items[i].emphasized),
             _cell(
               _amount(items[i].amount),
               alignRight: true,
@@ -753,13 +745,14 @@ pw.Widget _cell(
   bool header = false,
   bool bold = false,
   bool italic = false,
+  bool alignCenter = false,
   bool alignRight = false,
 }) {
   return pw.Padding(
     padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
     child: pw.Text(
       text,
-      textAlign: alignRight ? pw.TextAlign.right : pw.TextAlign.left,
+      textAlign: alignCenter ? pw.TextAlign.center : alignRight ? pw.TextAlign.right : pw.TextAlign.left,
       style: pw.TextStyle(
         fontSize: header ? 7.5 : 8.4,
         fontWeight: header || bold ? pw.FontWeight.bold : pw.FontWeight.normal,
