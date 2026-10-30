@@ -156,6 +156,49 @@ void main() {
     },
   );
 
+  test(
+    'builds a termin invoice with PPN and milestone payment terms',
+    () async {
+      final bytes = await buildOfferingInvoicePdf(
+        offering: offering(),
+        client: client,
+        invoiceTitle: 'INVOICE TERMIN',
+        invoiceSubtitle: 'TAGIHAN Termin 01',
+        invoiceAmount: 2500000,
+        issuedAt: DateTime(2026, 10, 28),
+      );
+
+      expect(bytes.length, greaterThan(1000));
+      expect(ascii.decode(bytes.take(4).toList()), '%PDF');
+    },
+  );
+
+  test('builds the payment term sentence from the milestone data', () {
+    expect(
+      invoiceDefaultPaymentTerm(
+        invoiceSubtitle: 'TAGIHAN Termin 01',
+        invoiceAmount: 100000000,
+        contractValue: 1000000000,
+      ),
+      '10% setelah PO/kontrak ditandatangani kedua belah pihak.',
+    );
+    expect(
+      invoiceDefaultPaymentTerm(
+        invoiceSubtitle: 'TAGIHAN Field work completed',
+        invoiceAmount: 60000000,
+        contractValue: 150000000,
+      ),
+      '40% setelah PO/kontrak ditandatangani kedua belah pihak.',
+    );
+    expect(
+      invoiceDefaultPaymentTerm(
+        invoiceSubtitle: 'TAGIHAN',
+        contractValue: 150000000,
+      ),
+      'Pembayaran sesuai ketentuan PO/kontrak.',
+    );
+  });
+
   test('formats amounts in Indonesian words', () {
     expect(terbilangRupiah(0), 'Nol rupiah');
     expect(terbilangRupiah(1000000), 'Satu juta rupiah');

@@ -287,32 +287,48 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.border),
           ),
-          child: Row(children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: AppColors.primary),
               ),
-              child: Icon(icon, size: 20, color: AppColors.primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 3),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-              ],
-            )),
-            const SizedBox(width: 8),
-            Text(
-              amount == null ? 'N/A' : formatRupiah(amount),
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-            ),
-          ]),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                amount == null ? 'N/A' : formatRupiah(amount),
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -332,7 +348,13 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Choose the full offering or a payment milestone.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                const Text(
+                  'Choose the full offering or a payment milestone.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _invoiceChoiceTile(
                   icon: Icons.receipt_long_outlined,
@@ -345,25 +367,31 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 360),
                   child: SingleChildScrollView(
-                    child: Column(children: [
-                      for (final term in offering.terms) ...[
-                        _invoiceChoiceTile(
-                          icon: Icons.payments_outlined,
-                          title: term.name,
-                          subtitle: '${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}% of offering',
-                          amount: term.amount,
-                          onTap: () => Navigator.pop(dialogContext, term),
-                        ),
-                        const SizedBox(height: 8),
+                    child: Column(
+                      children: [
+                        for (final term in offering.terms) ...[
+                          _invoiceChoiceTile(
+                            icon: Icons.payments_outlined,
+                            title: term.name,
+                            subtitle:
+                                '${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}% of offering',
+                            amount: term.amount,
+                            onTap: () => Navigator.pop(dialogContext, term),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                       ],
-                    ]),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
           ],
         ),
       );
@@ -383,6 +411,9 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
         offering: offering,
         client: client,
         payments: payments,
+        invoiceSequence: selectedTerm == null
+            ? 1
+            : offering.terms.indexOf(selectedTerm) + 2,
         invoiceTitle: selectedTerm == null ? 'INVOICE' : 'INVOICE TERMIN',
         invoiceSubtitle: selectedTerm == null
             ? 'TAGIHAN'
@@ -711,11 +742,16 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
               ),
             ),
             const SizedBox(width: 24),
-            Expanded(flex: 7, child: Column(children: [
-              _descriptionCard(offering),
-              const SizedBox(height: 20),
-              _termsCard(offering),
-            ])),
+            Expanded(
+              flex: 7,
+              child: Column(
+                children: [
+                  _descriptionCard(offering),
+                  const SizedBox(height: 20),
+                  _termsCard(offering),
+                ],
+              ),
+            ),
           ],
         ),
       ],
@@ -748,36 +784,94 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
   }
 
   Widget _termsCard(Offering offering) {
-    return _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const _Eyebrow('Payment Terms'),
-      const SizedBox(height: 6),
-      const Divider(height: 1),
-      const SizedBox(height: 14),
-      if (offering.terms.isEmpty)
-        const Text('No payment terms recorded.', style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary))
-      else
-        LayoutBuilder(builder: (context, constraints) => constraints.maxWidth >= 480
-          ? Table(
-              border: TableBorder.all(color: AppColors.border),
-              columnWidths: const {0: FlexColumnWidth(4), 1: FixedColumnWidth(80), 2: FixedColumnWidth(140)},
-              children: [
-                TableRow(decoration: BoxDecoration(color: AppColors.background.withValues(alpha: 0.72)), children: const [
-                  _DescriptionHeader('MILESTONE'), _DescriptionHeader('%', alignment: TextAlign.center), _DescriptionHeader('AMOUNT', alignment: TextAlign.right),
-                ]),
-                for (final term in offering.terms)
-                  TableRow(children: [
-                    Padding(padding: const EdgeInsets.all(10), child: Text(term.name, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
-                    _descriptionValue('${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}%', alignment: TextAlign.center),
-                    _descriptionValue(formatRupiah(term.amount), alignment: TextAlign.right),
-                  ]),
-              ],
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _Eyebrow('Payment Terms'),
+          const SizedBox(height: 6),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          if (offering.terms.isEmpty)
+            const Text(
+              'No payment terms recorded.',
+              style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
             )
-          : Column(children: [for (final term in offering.terms) ListTile(
-              contentPadding: EdgeInsets.zero, title: Text(term.name),
-              subtitle: Text('${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}%'),
-              trailing: Text(formatRupiah(term.amount), style: const TextStyle(fontWeight: FontWeight.w700)),
-            )])),
-    ]));
+          else
+            LayoutBuilder(
+              builder: (context, constraints) => constraints.maxWidth >= 480
+                  ? Table(
+                      border: TableBorder.all(color: AppColors.border),
+                      columnWidths: const {
+                        0: FlexColumnWidth(4),
+                        1: FixedColumnWidth(80),
+                        2: FixedColumnWidth(140),
+                      },
+                      children: [
+                        TableRow(
+                          decoration: BoxDecoration(
+                            color: AppColors.background.withValues(alpha: 0.72),
+                          ),
+                          children: const [
+                            _DescriptionHeader('MILESTONE'),
+                            _DescriptionHeader(
+                              '%',
+                              alignment: TextAlign.center,
+                            ),
+                            _DescriptionHeader(
+                              'AMOUNT',
+                              alignment: TextAlign.right,
+                            ),
+                          ],
+                        ),
+                        for (final term in offering.terms)
+                          TableRow(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Text(
+                                  term.name,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              _descriptionValue(
+                                '${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}%',
+                                alignment: TextAlign.center,
+                              ),
+                              _descriptionValue(
+                                formatRupiah(term.amount),
+                                alignment: TextAlign.right,
+                              ),
+                            ],
+                          ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        for (final term in offering.terms)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(term.name),
+                            subtitle: Text(
+                              '${term.percentage.toStringAsFixed(term.percentage % 1 == 0 ? 0 : 1)}%',
+                            ),
+                            trailing: Text(
+                              formatRupiah(term.amount),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _overviewCard(Offering offering) {

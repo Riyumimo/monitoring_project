@@ -28,6 +28,9 @@ const PdfColor _rowWhite = PdfColor.fromInt(0xFFFCFDFE);
 const PdfColor _excludedRow = PdfColor.fromInt(0xFFDDECF6);
 const PdfColor _footerBlue = PdfColor.fromInt(0xFF5B7BAF);
 
+/// Amount column width in the invoice table's 525-point content area.
+const double _invoiceAmountColumnWidth = 525 * 130 / 519;
+
 const String _companyName = 'PT. GEOTERRA INDONESIA';
 const String _companyTagline = 'Jasa Survei dan Pemetaan';
 const String _companyServices = 'Topografi | Batimetri | Drone | LiDAR';
@@ -96,8 +99,11 @@ class InvoiceLineItem {
 /// orange header, light-blue information panels, itemised work table, billing
 /// recap, payment terms, notes, and signature.
 ///
-/// Optional parameters exist so the real PO, tax, and bank details can be
-/// supplied later without changing the layout.
+/// PPN defaults to 11% of the billed amount, matching the company's invoice
+/// template; pass [taxRate] to override it. For termin invoices the payment
+/// term sentence is generated from the milestone percentage, so the mockup's
+/// "10% setelah PO/kontrak ditandatangani kedua belah pihak." follows the
+/// actual term data.
 Future<Uint8List> buildOfferingInvoicePdf({
   required Offering offering,
   ClientRecord? client,
@@ -108,17 +114,23 @@ Future<Uint8List> buildOfferingInvoicePdf({
   String invoiceSubtitle = 'TAGIHAN',
   String poNumber = '',
   DateTime? poDate,
-  double taxRate = 0,
+  double taxRate = 0.11,
   double? contractValue,
   double? invoiceAmount,
   String bankName = '',
   String bankAccountNumber = '',
   String bankAccountName = '',
-  String paymentTerm = 'Pembayaran sesuai ketentuan PO/kontrak.',
+  String? paymentTerm,
+  int? invoiceSequence,
 }) async {
   final document = pw.Document();
   final date = issuedAt ?? DateTime.now();
-  final invoiceNumber = _invoiceNumber(offering);
+  final invoiceNumber = _invoiceNumber(
+    offering,
+    client: client,
+    issuedAt: date,
+    sequence: invoiceSequence ?? 1,
+  );
   final contract = contractValue ?? offering.budgetAmount;
   final subtotal = invoiceAmount ?? offering.budgetAmount;
   final tax = (subtotal ?? 0) * taxRate;
@@ -131,15 +143,24 @@ Future<Uint8List> buildOfferingInvoicePdf({
   final taxLabel = taxPercent % 1 == 0
       ? taxPercent.toStringAsFixed(0)
       : taxPercent.toStringAsFixed(1);
-  final isTermin = invoiceSubtitle.toUpperCase().contains('TERMIN');
+  final isTermin = _isTerminInvoice(invoiceSubtitle, invoiceAmount);
   final termName = isTermin
-      ? invoiceSubtitle.toUpperCase().replaceFirst('TAGIHAN ', '')
+      ? invoiceSubtitle
+            .replaceFirst(RegExp(r'^TAGIHAN\s+', caseSensitive: false), '')
+            .trim()
       : 'Termin';
   final subtotalLabel =
       invoiceAmount != null && contract != null && contract > 0
-      ? '$termName ${_percentLabel(invoiceAmount, contract)} dari nilai '
+      ? '$termName - ${_percentLabel(invoiceAmount, contract)} dari nilai '
             'kontrak / Subtotal (DPP)'
-      : 'Subtotal (DPP)';
+      : 'Subtotal';
+  final resolvedPaymentTerm =
+      paymentTerm ??
+      invoiceDefaultPaymentTerm(
+        invoiceSubtitle: invoiceSubtitle,
+        invoiceAmount: invoiceAmount,
+        contractValue: contract,
+      );
   final terbilang = total == null
       ? '-'
       : '${terbilangRupiah(total)}'
@@ -203,7 +224,7 @@ Future<Uint8List> buildOfferingInvoicePdf({
           bankName: bankName,
           bankAccountNumber: bankAccountNumber,
           bankAccountName: bankAccountName,
-          paymentTerm: paymentTerm,
+          paymentTerm: resolvedPaymentTerm,
           termsTitle: isTermin ? 'KETENTUAN TERMIN' : 'KETENTUAN PEMBAYARAN',
         ),
         pw.SizedBox(height: 8),
@@ -220,6 +241,33 @@ Future<Uint8List> buildOfferingInvoicePdf({
   );
 
   return document.save();
+}
+
+/// Whether [invoiceSubtitle] / [invoiceAmount] describe a termin (milestone)
+/// invoice rather than a full-contract invoice.
+bool _isTerminInvoice(String invoiceSubtitle, double? invoiceAmount) {
+  return invoiceAmount != null ||
+      invoiceSubtitle.toUpperCase().contains('TERMIN');
+}
+
+/// First line of the invoice's payment-terms panel.
+///
+/// Termin invoices quote the actual milestone percentage, e.g.
+/// `10% setelah PO/kontrak ditandatangani kedua belah pihak.` Full-contract
+/// invoices keep the generic sentence.
+String invoiceDefaultPaymentTerm({
+  String invoiceSubtitle = 'TAGIHAN',
+  double? invoiceAmount,
+  double? contractValue,
+}) {
+  if (_isTerminInvoice(invoiceSubtitle, invoiceAmount) &&
+      invoiceAmount != null &&
+      contractValue != null &&
+      contractValue > 0) {
+    return '${_percentLabel(invoiceAmount, contractValue)} setelah PO/kontrak '
+        'ditandatangani kedua belah pihak.';
+  }
+  return 'Pembayaran sesuai ketentuan PO/kontrak.';
 }
 
 /// A safe file name for the generated invoice, e.g. `Invoice-OFR-2026-014.pdf`.
@@ -738,22 +786,32 @@ pw.Widget _recap({
     children: [
       _sectionLabel(title),
       pw.SizedBox(height: 4),
-      pw.Row(
-        children: [
-          pw.Spacer(),
-          pw.SizedBox(
-            width: 315,
-            child: _recapRow(subtotalLabel, _rupiah(subtotal)),
-          ),
-        ],
+      pw.Container(
+        width: double.infinity,
+        decoration: const pw.BoxDecoration(
+          border: pw.Border(bottom: pw.BorderSide(color: _border, width: 0.48)),
+        ),
+        child: pw.Row(
+          children: [
+            pw.Expanded(
+              child: _recapRow(
+                subtotalLabel,
+                _rupiah(subtotal),
+                showBorder: false,
+              ),
+            ),
+          ],
+        ),
       ),
       if (hasTax)
         pw.Row(
           children: [
-            pw.Spacer(),
-            pw.SizedBox(
-              width: 315,
-              child: _recapRow('PPN $taxLabel% (sesuai PO)', _rupiah(tax)),
+            pw.Expanded(
+              child: _recapRow(
+                'PPN $taxLabel% (sesuai PO)',
+                _rupiah(tax),
+                showBorder: false,
+              ),
             ),
           ],
         ),
@@ -814,27 +872,40 @@ pw.Widget _recap({
   );
 }
 
-pw.Widget _recapRow(String label, String value) {
+pw.Widget _recapRow(String label, String value, {bool showBorder = true}) {
   return pw.Container(
     padding: const pw.EdgeInsets.symmetric(vertical: 5),
-    decoration: const pw.BoxDecoration(
-      border: pw.Border(bottom: pw.BorderSide(color: _border, width: 0.48)),
-    ),
+    decoration: showBorder
+        ? const pw.BoxDecoration(
+            border: pw.Border(
+              bottom: pw.BorderSide(color: _border, width: 0.48),
+            ),
+          )
+        : null,
     child: pw.Row(
       children: [
         pw.Expanded(
           child: pw.Text(
             label,
+            maxLines: 1,
+            textAlign: pw.TextAlign.right,
             style: const pw.TextStyle(fontSize: 8, color: _muted),
           ),
         ),
         pw.SizedBox(width: 8),
-        pw.Text(
-          value,
-          style: pw.TextStyle(
-            fontSize: 8.2,
-            fontWeight: pw.FontWeight.bold,
-            color: _ink,
+        pw.SizedBox(
+          width: _invoiceAmountColumnWidth,
+          child: pw.Padding(
+            padding: const pw.EdgeInsets.only(right: 6),
+            child: pw.Text(
+              value,
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 8.2,
+                fontWeight: pw.FontWeight.bold,
+                color: _ink,
+              ),
+            ),
           ),
         ),
       ],
@@ -1130,11 +1201,81 @@ String _percentLabel(double part, double whole) {
   return '${percent % 1 == 0 ? percent.toStringAsFixed(0) : percent.toStringAsFixed(1)}%';
 }
 
-String _invoiceNumber(Offering offering) {
-  final raw = offering.number.trim().isNotEmpty
-      ? offering.number.trim()
-      : offering.id;
-  return raw.toUpperCase().startsWith('INV') ? raw : 'INV-$raw';
+String _invoiceNumber(
+  Offering offering, {
+  required ClientRecord? client,
+  required DateTime issuedAt,
+  required int sequence,
+}) {
+  if (sequence < 1) {
+    throw ArgumentError.value(sequence, 'sequence', 'Must be greater than 0.');
+  }
+
+  final clientName = client?.name.trim().isNotEmpty == true
+      ? client!.name
+      : offering.owner;
+  final initials = _clientInitials(clientName);
+  final sequenceLabel = sequence.toString().padLeft(3, '0');
+  return '$sequenceLabel/INV/${_invoiceServiceCode(offering.serviceType)}/'
+      'GTI-$initials/${_romanMonth(issuedAt.month)}/${issuedAt.year}';
+}
+
+String _clientInitials(String name) {
+  final withoutLegalPrefix = name.replaceFirst(
+    RegExp(r'^\s*P\.?T\.?\s+', caseSensitive: false),
+    '',
+  );
+  final words = withoutLegalPrefix
+      .split(RegExp(r'[^A-Za-z0-9]+'))
+      .where((word) => word.isNotEmpty);
+  final initials = words.map((word) => word[0].toUpperCase()).join();
+  return initials.isEmpty ? 'CLIENT' : initials;
+}
+
+String _invoiceServiceCode(String serviceType) {
+  final normalized = serviceType.toLowerCase();
+  if (normalized.contains('survey') ||
+      normalized.contains('survei') ||
+      normalized.contains('topo') ||
+      normalized.contains('bathym') ||
+      normalized.contains('batim') ||
+      normalized.contains('mapping') ||
+      normalized.contains('pemetaan') ||
+      normalized.contains('lidar') ||
+      normalized.contains('drone')) {
+    return 'SRVY';
+  }
+  if (normalized.contains('calibrat') || normalized.contains('kalibrasi')) {
+    return 'CAL';
+  }
+  if (normalized.contains('rent') || normalized.contains('sewa')) {
+    return 'RENT';
+  }
+
+  final lettersOnly = serviceType.replaceAll(RegExp(r'[^A-Za-z]'), '');
+  if (lettersOnly.isEmpty) return 'SRVY';
+  final code = lettersOnly.length > 4
+      ? lettersOnly.substring(0, 4)
+      : lettersOnly;
+  return code.toUpperCase();
+}
+
+String _romanMonth(int month) {
+  const months = [
+    'I',
+    'II',
+    'III',
+    'IV',
+    'V',
+    'VI',
+    'VII',
+    'VIII',
+    'IX',
+    'X',
+    'XI',
+    'XII',
+  ];
+  return months[month - 1];
 }
 
 String _formatDate(DateTime date) {
