@@ -16,6 +16,7 @@ import '../router/app_router.dart';
 import '../services/client_directory.dart';
 import '../services/invoice_download.dart';
 import '../services/invoice_pdf.dart';
+import '../services/invoice_rental_pdf.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency.dart';
 import '../utils/offering_line_items.dart';
@@ -417,21 +418,31 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
       final payments = _payments
           .where((payment) => payment.offeringId == offering.id)
           .toList();
-      final bytes = await buildOfferingInvoicePdf(
-        offering: offering,
-        client: client,
-        payments: payments,
-        invoiceSequence: selectedTerm == null
-            ? 1
-            : offering.terms.indexOf(selectedTerm) + 2,
-        poNumber: poDetails?.number ?? '',
-        poDate: poDetails?.date,
-        invoiceTitle: selectedTerm == null ? 'INVOICE' : 'INVOICE TERMIN',
-        invoiceSubtitle: selectedTerm == null
-            ? 'TAGIHAN'
-            : 'TAGIHAN ${selectedTerm.name}',
-        invoiceAmount: selectedTerm?.amount,
-      );
+      final bytes = offering.isRentalService
+          ? await buildRentalInvoicePdf(
+              offering: offering,
+              clientName: _rentalRecipient(offering, client),
+              invoiceNumber: _buildInvoiceNumber(offering, selectedTerm),
+              issuedAt: DateTime.now(),
+              bankName: client?.bankName ?? '',
+              bankAccountNumber: client?.bankAccountNumber ?? '',
+              bankAccountName: client?.bankAccountName ?? '',
+            )
+          : await buildOfferingInvoicePdf(
+              offering: offering,
+              client: client,
+              payments: payments,
+              invoiceSequence: selectedTerm == null
+                  ? 1
+                  : offering.terms.indexOf(selectedTerm) + 2,
+              poNumber: poDetails?.number ?? '',
+              poDate: poDetails?.date,
+              invoiceTitle: selectedTerm == null ? 'INVOICE' : 'INVOICE TERMIN',
+              invoiceSubtitle: selectedTerm == null
+                  ? 'TAGIHAN'
+                  : 'TAGIHAN ${selectedTerm.name}',
+              invoiceAmount: selectedTerm?.amount,
+            );
       final saved = await saveInvoiceFile(
         fileName: selectedTerm == null
             ? invoicePdfFileName(offering)
@@ -453,6 +464,22 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     } finally {
       if (mounted) setState(() => _downloadingInvoice = false);
     }
+  }
+
+  String _rentalRecipient(Offering offering, ClientRecord? client) {
+    final name = client?.name.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return offering.owner.trim();
+  }
+
+  String _buildInvoiceNumber(Offering offering, OfferingTerm? term) {
+    final base = offering.number.trim().isNotEmpty
+        ? offering.number.trim()
+        : offering.id;
+    final safe = base.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-');
+    if (term == null) return safe;
+    final termSlug = term.name.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-');
+    return '$safe-$termSlug';
   }
 
   Payment? get _latestPaymentWithProof {
@@ -533,6 +560,7 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
       budgetAmount: offering.budgetAmount,
       lineItems: offering.lineItems,
       terms: offering.terms,
+      rentalItems: offering.rentalItems,
       numberingStyle: offering.numberingStyle,
       amountPaid: amountPaid ?? offering.amountPaid,
       clientHasRecentOffer: offering.clientHasRecentOffer,

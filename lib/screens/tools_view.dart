@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/tool_asset.dart';
+import '../models/rental_tool.dart';
+import '../utils/currency.dart';
 import '../services/mock_data.dart';
 import '../theme/app_theme.dart';
 import '../widgets/stat_card.dart';
@@ -50,6 +52,11 @@ class ToolsView extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 22),
+          const Text('Rental Catalog', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          for (final tool in rentalToolCatalog)
+            Card(child: ListTile(title: Text(tool.name),
+              subtitle: Text('${tool.category} • ${tool.description}\n${formatRupiah(tool.rentalRate)} / ${tool.unit} / day'),
+              trailing: Text('Stock: ${tool.stock}'))),
           const Text(
             'Tools & Equipment',
             style: TextStyle(

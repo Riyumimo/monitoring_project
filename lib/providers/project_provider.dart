@@ -312,6 +312,7 @@ class ProjectProvider extends ChangeNotifier {
               budgetAmount: o.budgetAmount,
               lineItems: o.lineItems,
               terms: o.terms,
+              rentalItems: o.rentalItems,
               numberingStyle: o.numberingStyle,
               amountPaid: o.amountPaid,
               clientHasRecentOffer: o.clientHasRecentOffer,

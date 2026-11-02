@@ -1,6 +1,7 @@
 import 'line_item_number_style.dart';
 import 'offering_line_item.dart';
 import 'offering_term.dart';
+import 'rental_tool.dart';
 
 enum OfferingStatus { draft, sent, accepted, rejected, expired }
 
@@ -29,6 +30,8 @@ class Offering {
   /// omitted. Older records may have a budget with no rows yet.
   final List<OfferingLineItem> lineItems;
   final List<OfferingTerm> terms;
+  final List<RentalOfferingItem> rentalItems;
+  double get rentalTotal => rentalItems.fold(0.0, (sum, item) => sum + item.total);
 
   /// Fallback numbering style for rows that do not have a manually typed
   /// number label. Used by older records; the offering form stores per-row
@@ -62,7 +65,8 @@ class Offering {
     this.longitude,
     this.status = OfferingStatus.draft,
     this.paidStatus = PaidStatus.unpaid,
-    this.budgetAmount,
+    double? budgetAmount,
+    this.rentalItems = const [],
     this.lineItems = const [],
     this.terms = const [],
     this.numberingStyle = LineItemNumberStyle.numeric,
@@ -70,7 +74,13 @@ class Offering {
     this.clientHasRecentOffer = false,
     this.rentalUntil,
     this.projectId,
-  }) : amountPaid = amountPaid ?? _defaultAmountPaid(paidStatus, budgetAmount);
+  }) : budgetAmount = rentalItems.isNotEmpty && serviceType.toLowerCase().trim().startsWith('rent')
+           ? rentalItems.fold<double>(0, (sum, item) => sum + item.total)
+           : budgetAmount,
+       amountPaid = amountPaid ?? _defaultAmountPaid(paidStatus,
+         rentalItems.isNotEmpty && serviceType.toLowerCase().trim().startsWith('rent')
+           ? rentalItems.fold<double>(0, (sum, item) => sum + item.total)
+           : budgetAmount);
 
   /// Remaining balance for this offering, or `null` when no budget is set.
   double? get remainingAmount {
@@ -130,6 +140,9 @@ class Offering {
       status: _statusFromString(json['status'] ?? 'draft'),
       paidStatus: _paidStatusFromString(json['paidStatus'] ?? 'unpaid'),
       budgetAmount: storedBudget ?? _lineItemsTotal(lineItems),
+      rentalItems: (json['rentalItems'] as List? ?? const [])
+          .map((item) => RentalOfferingItem.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList(growable: false),
       lineItems: lineItems,
       terms: (json['terms'] as List? ?? const [])
           .whereType<Map>()
@@ -194,6 +207,7 @@ class Offering {
       'budgetAmount': budgetAmount,
       'lineItems': [for (final item in lineItems) item.toJson()],
       'terms': [for (final term in terms) term.toJson()],
+      'rentalItems': [for (final item in rentalItems) item.toJson()],
       'numberingStyle': numberingStyle.name,
       'amountPaid': amountPaid,
       'clientHasRecentOffer': clientHasRecentOffer,

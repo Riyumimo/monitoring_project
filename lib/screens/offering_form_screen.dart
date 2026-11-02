@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/line_item_number_style.dart';
 import '../models/line_item_text_run.dart';
 import '../models/offering.dart';
+import '../models/rental_tool.dart';
 import '../models/offering_line_item.dart';
 import '../models/offering_term.dart';
 import '../providers/project_provider.dart';
@@ -17,7 +18,6 @@ import '../theme/app_theme.dart';
 import '../utils/currency.dart';
 import '../utils/offering_line_items.dart';
 import '../utils/rich_text_controller.dart';
-import '../utils/status_extensions.dart';
 import '../widgets/rich_text_shortcuts.dart';
 
 /// Create/edit an **offering** (the proposal sent to a client). Offers are
@@ -43,6 +43,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
   final _longitudeController = TextEditingController();
   final List<_LineItemDraft> _lineItems = [];
   final List<_TermDraft> _terms = [];
+  final List<RentalOfferingItem> _rentalItems = [];
 
   OfferingStatus _status = OfferingStatus.draft;
   PaidStatus _paidStatus = PaidStatus.unpaid;
@@ -148,6 +149,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
 
   void _populate(Offering offering) {
     _editing = offering;
+    _rentalItems..clear()..addAll(offering.rentalItems);
     _numberController.text = offering.number;
     _nameController.text = offering.name;
     _serviceTypeController.text = offering.serviceType;
@@ -212,8 +214,9 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       );
     }
 
-    if (_lineItems.isEmpty)
+    if (_lineItems.isEmpty) {
       _lineItems.add(_createLineItemDraft(numberText: '1'));
+    }
   }
 
   _LineItemDraft _createLineItemDraft({
@@ -527,8 +530,14 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
     }
 
     final provider = context.read<ProjectProvider>();
-    final lineItems = _lineItemsForSave;
-    final budgetAmount = lineItems.isEmpty ? null : _lineItemTotal;
+    if (_isRentalService && _rentalItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add at least one rental tool.')));
+      return;
+    }
+    final lineItems = _isRentalService ? <OfferingLineItem>[] : _lineItemsForSave;
+    final budgetAmount = _isRentalService
+        ? _rentalItems.fold<double>(0, (sum, item) => sum + item.total)
+        : lineItems.isEmpty ? null : _lineItemTotal;
     final owner = _ownerController.text.trim();
     final selectedClient = ClientDirectory.findByName(owner);
     final clientId =
@@ -558,6 +567,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       paidStatus: _paidStatus,
       budgetAmount: budgetAmount,
       lineItems: lineItems,
+      rentalItems: _isRentalService ? List.unmodifiable(_rentalItems) : const [],
       terms: [
         for (final term in _terms)
           if (term.name.text.trim().isNotEmpty)
@@ -747,7 +757,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
           children: [
             detailsCard,
             const SizedBox(height: 16),
-            _budgetCard(),
+            if (_isRentalService) _rentalItemsCard() else _budgetCard(),
             const SizedBox(height: 16),
             _termsCard(),
             const SizedBox(height: 16),
@@ -1500,6 +1510,58 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       ),
     );
   }
+
+  Future<void> _editRentalItem([int? index]) async {
+    final existing = index == null ? null : _rentalItems[index];
+    var tool = existing?.tool ?? rentalToolCatalog.first;
+    var start = existing?.startsAt ?? DateTime.now();
+    final quantity = TextEditingController(text: '${existing?.quantity ?? 1}');
+    final duration = TextEditingController(text: '${existing?.duration ?? 1}');
+    final rate = TextEditingController(text: formatRupiahInput(existing?.rate ?? tool.rentalRate));
+    final key = GlobalKey<FormState>();
+    final result = await showDialog<RentalOfferingItem>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
+      title: Text(existing == null ? 'Add rental tool' : 'Edit rental tool'),
+      content: SizedBox(width: 440, child: Form(key: key, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        DropdownButtonFormField<String>(initialValue: tool.id, isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Catalog tool'),
+          items: [for (final entry in {for (final t in rentalToolCatalog) t.id: t, tool.id: tool}.values) DropdownMenuItem(value: entry.id, child: Text(entry.name, overflow: TextOverflow.ellipsis))],
+          onChanged: (id) => update(() { tool = rentalToolCatalog.firstWhere((t) => t.id == id); rate.text = formatRupiahInput(tool.rentalRate); })),
+        Text('${tool.description}\nStock: ${tool.stock} ${tool.unit}; rate per day'),
+        TextFormField(controller: quantity, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number,
+          validator: (v) { final n = int.tryParse(v ?? ''); return n == null || n < 1 || n > tool.stock ? 'Enter 1 to ${tool.stock}' : null; }),
+        TextFormField(controller: duration, decoration: const InputDecoration(labelText: 'Duration (days, inclusive)'), keyboardType: TextInputType.number,
+          validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? 'Enter positive days' : null),
+        TextFormField(controller: rate, decoration: const InputDecoration(labelText: 'Daily rate', prefixText: 'Rp '), keyboardType: TextInputType.number, inputFormatters: const [RupiahInputFormatter()],
+          validator: (v) { final n = parseRupiah(v ?? ''); return n == null || !n.isFinite || n < 0 ? 'Enter a valid rate' : null; }),
+        _dateField(label: 'Start date', value: start, onPick: (date) => update(() => start = date)),
+      ])))),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(onPressed: () { if (key.currentState!.validate()) Navigator.pop(context, RentalOfferingItem(tool: tool, quantity: int.parse(quantity.text), duration: int.parse(duration.text), startsAt: start, rate: parseRupiah(rate.text)!)); }, child: const Text('Save tool'))],
+    )));
+    // Dialog route transitions may still hold the field controllers.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    quantity.dispose(); duration.dispose(); rate.dispose();
+    if (!mounted || result == null) return;
+    setState(() {
+      if (index == null) { _rentalItems.add(result); } else { _rentalItems[index] = result; }
+      _rentalUntil = _rentalItems.map((i) => i.endsAt).reduce((a, b) => a.isAfter(b) ? a : b);
+    });
+  }
+
+  Widget _rentalItemsCard() => _sectionCard(title: 'Rental Tools', children: [
+    const Text('Rates are saved with this offering. Duration includes the start and end day. Stock is catalog capacity, not a live reservation.'),
+    for (var i = 0; i < _rentalItems.length; i++) ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(_rentalItems[i].tool.name),
+      subtitle: Text('${_rentalItems[i].quantity} ${_rentalItems[i].tool.unit} × ${_rentalItems[i].duration} days × ${formatRupiah(_rentalItems[i].rate)}\n${_rentalItems[i].startsAt.toString().split(' ').first} – ${_rentalItems[i].endsAt.toString().split(' ').first}'),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(tooltip: 'Edit rental tool', onPressed: () => _editRentalItem(i), icon: const Icon(Icons.edit_outlined)),
+        IconButton(tooltip: 'Remove rental tool', onPressed: () => setState(() => _rentalItems.removeAt(i)), icon: const Icon(Icons.delete_outline)),
+      ]),
+    ),
+    OutlinedButton.icon(onPressed: _editRentalItem, icon: const Icon(Icons.add), label: const Text('Add rental tool')),
+    Text('Rental total: ${formatRupiah(_rentalItems.fold<double>(0, (sum, item) => sum + item.total))}'),
+  ]);
 
   Widget _rentalCard() {
     return _sectionCard(
