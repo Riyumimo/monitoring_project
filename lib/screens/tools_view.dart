@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+
 import '../models/tool_asset.dart';
 import '../models/rental_tool.dart';
-import '../utils/currency.dart';
 import '../services/mock_data.dart';
 import '../theme/app_theme.dart';
+import '../utils/currency.dart';
 import '../widgets/stat_card.dart';
 
 class ToolsView extends StatelessWidget {
@@ -12,8 +13,8 @@ class ToolsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tools = MockData.tools();
-    final total = tools.fold<int>(0, (sum, t) => sum + t.total);
-    final available = tools.fold<int>(0, (sum, t) => sum + t.available);
+    final total = tools.fold<int>(0, (sum, tool) => sum + tool.total);
+    final available = tools.fold<int>(0, (sum, tool) => sum + tool.available);
     final inUse = total - available;
 
     return Container(
@@ -51,21 +52,9 @@ class ToolsView extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 22),
-          const Text(
-            'Rental Catalog',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-          ),
-          for (final tool in rentalToolCatalog)
-            Card(
-              child: ListTile(
-                title: Text(tool.name),
-                subtitle: Text(
-                  '${tool.category} • ${tool.description}\n${formatRupiah(tool.rentalRate)} / ${tool.unit} / day',
-                ),
-                trailing: Text('Stock: ${tool.stock}'),
-              ),
-            ),
+          const SizedBox(height: 24),
+          _rentalCatalogSection(),
+          const SizedBox(height: 28),
           const Text(
             'Tools & Equipment',
             style: TextStyle(
@@ -82,6 +71,7 @@ class ToolsView extends StatelessWidget {
                   : constraints.maxWidth >= 600
                   ? 2
                   : 1;
+
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -101,9 +91,236 @@ class ToolsView extends StatelessWidget {
     );
   }
 
+  Widget _rentalCatalogSection() {
+    final catalog = rentalToolCatalog;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'RENTAL INVENTORY',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Rental Catalog',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '${catalog.length.toString().padLeft(2, '0')} ITEMS',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: AppColors.border),
+          if (catalog.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+              child: Center(
+                child: Text(
+                  'No rental items available.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tableWidth = constraints.maxWidth < 760
+                    ? 760.0
+                    : constraints.maxWidth;
+
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                          child: _catalogColumns(
+                            equipment: _columnLabel('EQUIPMENT'),
+                            category: _columnLabel('CATEGORY'),
+                            rate: _columnLabel('DAILY RATE'),
+                            stock: _columnLabel('STOCK'),
+                          ),
+                        ),
+                        Divider(height: 1, color: AppColors.border),
+                        ...catalog.map(_catalogRow),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _columnLabel(String label) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textSecondary,
+      ),
+    );
+  }
+
+  Widget _catalogColumns({
+    required Widget equipment,
+    required Widget category,
+    required Widget rate,
+    required Widget stock,
+  }) {
+    return Row(
+      children: [
+        Expanded(flex: 5, child: equipment),
+        Expanded(flex: 2, child: category),
+        Expanded(flex: 3, child: rate),
+        Expanded(flex: 2, child: stock),
+      ],
+    );
+  }
+
+  Widget _catalogRow(RentalTool tool) {
+    final stockColor = tool.stock > 0 ? AppColors.completed : AppColors.onHold;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: _catalogColumns(
+            equipment: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tool.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tool.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            category: Text(
+              tool.category,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            rate: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatRupiah(tool.rentalRate),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'per ${tool.unit} / day',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            stock: Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: stockColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    tool.stock > 0 ? '${tool.stock} units' : 'Out of stock',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: stockColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Divider(height: 1, color: AppColors.border),
+      ],
+    );
+  }
+
   Widget _toolCard(ToolAsset tool) {
     final Color statusColor;
     final String statusLabel;
+
     if (tool.available == 0) {
       statusColor = AppColors.onHold;
       statusLabel = 'In Use';

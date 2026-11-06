@@ -3,24 +3,29 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  static const Color primary = Color(0xFF2F6E4E);
-  static const Color primaryDark = Color(0xFF1E4D36);
-  static const Color accent = Color(0xFF8BC34A);
-  static const Color background = Color(0xFFF4F6F2);
+  // Brand palette
+  static const Color primary = Color(0xFFF88021);
+  static const Color primaryDark = Color(0xFFD76712);
+  static const Color secondary = Color(0xFF4470C4);
+  static const Color accent = Color(0xFFA3A3A3);
+
+  // Neutral foundation
+  static const Color background = Color(0xFFFBF5F3);
   static const Color surface = Colors.white;
-  static const Color textPrimary = Color(0xFF1C2B25);
-  static const Color textSecondary = Color(0xFF6B7A72);
-  static const Color border = Color(0xFFE4EAE4);
+  static const Color textPrimary = Color(0xFF050315);
+  static const Color textSecondary = Color(0xFF6B6873);
+  static const Color border = Color(0xFFEAE3E0);
 
-  static const Color pending = Color(0xFFF59E0B);
-  static const Color accepted = Color(0xFF0EA5E9);
-  static const Color inProgress = Color(0xFF3B82F6);
-  static const Color completed = Color(0xFF16A34A);
-  static const Color onHold = Color(0xFFEF4444);
+  // Semantic states
+  static const Color pending = Color(0xFFF88021);
+  static const Color accepted = Color(0xFF4470C4);
+  static const Color inProgress = Color(0xFF4470C4);
+  static const Color completed = Color(0xFF23845B);
+  static const Color onHold = Color(0xFFD6534B);
 
-  static const Color unpaid = Color(0xFFEF4444);
-  static const Color partiallyPaid = Color(0xFFF59E0B);
-  static const Color paid = Color(0xFF16A34A);
+  static const Color unpaid = Color(0xFFD6534B);
+  static const Color partiallyPaid = Color(0xFFF88021);
+  static const Color paid = Color(0xFF23845B);
 }
 
 class AppTheme {
@@ -32,6 +37,8 @@ class AppTheme {
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.primary,
         primary: AppColors.primary,
+        secondary: AppColors.secondary,
+        tertiary: AppColors.accent,
         surface: AppColors.surface,
         brightness: Brightness.light,
       ),
@@ -43,12 +50,12 @@ class AppTheme {
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        scrolledUnderElevation: 0.5,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
           color: AppColors.textPrimary,
           fontSize: 18,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
       ),
       cardTheme: CardThemeData(
@@ -56,47 +63,52 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           side: const BorderSide(color: AppColors.border),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.6),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
         ),
         labelStyle: const TextStyle(color: AppColors.textSecondary),
+        hintStyle: const TextStyle(color: AppColors.textSecondary),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: AppColors.textPrimary,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.secondary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
       ),
       dividerTheme: const DividerThemeData(
         color: AppColors.border,
@@ -104,11 +116,14 @@ class AppTheme {
         space: 1,
       ),
       tabBarTheme: const TabBarThemeData(
-        labelColor: AppColors.primary,
+        labelColor: AppColors.primaryDark,
         unselectedLabelColor: AppColors.textSecondary,
         indicatorColor: AppColors.primary,
         labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-        unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+        unselectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 13,
+        ),
       ),
     );
   }
