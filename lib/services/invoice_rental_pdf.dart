@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -46,9 +45,10 @@ const String _companyAddress =
     'Provinsi Jambi Telp : +62 853-7867-6656, Website : '
     'www.geoterraindonesia.co.id';
 
-// Top-left banner logo size (mirrors the reference cluster: 238.7 x 63.1 pt).
-const double _bannerWidth = 238.7;
-const double _bannerHeight = _bannerWidth * 131 / 497;
+// Full-width banner dimensions matching index.html (A4 width x 24 mm high).
+// Kept at the original PDF banner footprint; aspect ratio matches BANNER.PNG.
+const double _bannerWidth = 238.70;
+const double _bannerHeight = 62.04;
 
 const List<String> _months = [
   'Januari',
@@ -81,12 +81,12 @@ Future<Uint8List> buildRentalInvoicePdf({
   String bankAccountName = '',
   String location = 'Jambi',
   bool showSignature = true,
+  String directorName = 'SARIS',
 }) async {
   final document = pw.Document();
   final date = issuedAt ?? DateTime.now();
   final recipient = (clientName ?? offering.owner).trim();
   final items = offering.rentalItems;
-  final logo = await _loadLogo();
 
   final subtotal = items.fold<double>(0, (sum, item) => sum + item.total);
   final ppn = subtotal * 0.11;
@@ -124,14 +124,14 @@ Future<Uint8List> buildRentalInvoicePdf({
                   if (showSignature)
                     pw.Align(
                       alignment: pw.Alignment.centerRight,
-                      child: _signatureBlock(),
+                      child: _signatureBlock(directorName),
                     ),
                 ],
               ),
             ),
           ),
-          if (logo != null)
-            pw.Positioned(left: 0, top: 0, child: _topBannerLogo(logo)),
+          // Full-width geometric banner matching the SVG used by index.html.
+          pw.Positioned(left: 0, top: 0, child: _topBannerGraphic()),
           pw.Positioned(left: _left, top: 761, child: _footerBanner()),
         ],
       ),
@@ -271,9 +271,10 @@ pw.Widget _infoPanels(String invoiceNumber, String period, int totalDays) {
       pw.Row(
         children: [
           pw.Expanded(
-            child: _infoCell('Nomor Invoice', invoiceNumber.isEmpty
-                ? '-'
-                : invoiceNumber),
+            child: _infoCell(
+              'Nomor Invoice',
+              invoiceNumber.isEmpty ? '-' : invoiceNumber,
+            ),
           ),
           pw.SizedBox(width: 4),
           pw.Expanded(child: _infoCell('Periode Sewa', period)),
@@ -341,37 +342,37 @@ pw.Widget _rentalTable(List<RentalOfferingItem> items) {
       ],
     ),
     child: pw.Table(
-    border: const pw.TableBorder(
-      top: pw.BorderSide(color: _grid, width: 0.5),
-      bottom: pw.BorderSide(color: _grid, width: 0.5),
-      left: pw.BorderSide(color: _grid, width: 0.5),
-      right: pw.BorderSide(color: _grid, width: 0.5),
-      horizontalInside: pw.BorderSide(color: _grid, width: 0.5),
-      verticalInside: pw.BorderSide(color: _grid, width: 0.5),
-    ),
-    columnWidths: const {
-      0: pw.FixedColumnWidth(41.8),
-      1: pw.FlexColumnWidth(176.5),
-      2: pw.FixedColumnWidth(50.6),
-      3: pw.FixedColumnWidth(49.2),
-      4: pw.FixedColumnWidth(87.8),
-      5: pw.FixedColumnWidth(93.9),
-    },
-    children: [
-      pw.TableRow(
-        decoration: const pw.BoxDecoration(color: _orange),
-        children: [
-          _header('No.', pw.Alignment.center),
-          _header('Uraian Sewa', pw.Alignment.center),
-          _header('Kuantitas', pw.Alignment.center),
-          _header('Satuan', pw.Alignment.center),
-          _header('Harga Perbulan', pw.Alignment.center),
-          _header('Jumlah', pw.Alignment.center),
-        ],
+      border: const pw.TableBorder(
+        top: pw.BorderSide(color: _grid, width: 0.5),
+        bottom: pw.BorderSide(color: _grid, width: 0.5),
+        left: pw.BorderSide(color: _grid, width: 0.5),
+        right: pw.BorderSide(color: _grid, width: 0.5),
+        horizontalInside: pw.BorderSide(color: _grid, width: 0.5),
+        verticalInside: pw.BorderSide(color: _grid, width: 0.5),
       ),
-      for (var i = 0; i < items.length; i++)
-        pw.TableRow(children: _rowCells(i, items[i])),
-    ],
+      columnWidths: const {
+        0: pw.FixedColumnWidth(41.8),
+        1: pw.FlexColumnWidth(176.5),
+        2: pw.FixedColumnWidth(50.6),
+        3: pw.FixedColumnWidth(49.2),
+        4: pw.FixedColumnWidth(87.8),
+        5: pw.FixedColumnWidth(93.9),
+      },
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: _orange),
+          children: [
+            _header('No.', pw.Alignment.center),
+            _header('Uraian Sewa', pw.Alignment.center),
+            _header('Kuantitas', pw.Alignment.center),
+            _header('Satuan', pw.Alignment.center),
+            _header('Harga Perbulan', pw.Alignment.center),
+            _header('Jumlah', pw.Alignment.center),
+          ],
+        ),
+        for (var i = 0; i < items.length; i++)
+          pw.TableRow(children: _rowCells(i, items[i])),
+      ],
     ),
   );
 }
@@ -513,7 +514,10 @@ pw.Widget _paymentInfo(
         ),
       ),
       pw.SizedBox(height: 1.5),
-      _bankLine('Nomor Rekening', bankAccountNumber.isEmpty ? '-' : bankAccountNumber),
+      _bankLine(
+        'Nomor Rekening',
+        bankAccountNumber.isEmpty ? '-' : bankAccountNumber,
+      ),
       _bankLine('Atas Nama', bankAccountName.isEmpty ? '-' : bankAccountName),
     ],
   );
@@ -534,7 +538,8 @@ pw.Widget _bankLine(String label, String value) {
   );
 }
 
-pw.Widget _signatureBlock() {
+pw.Widget _signatureBlock(String directorName) {
+  final name = directorName.trim().isEmpty ? 'SARIS' : directorName.trim();
   return pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.center,
     mainAxisSize: pw.MainAxisSize.min,
@@ -548,17 +553,15 @@ pw.Widget _signatureBlock() {
           color: _ink,
         ),
       ),
-      pw.SizedBox(height: 62),
+      pw.SizedBox(height: 48),
       pw.Container(
-        width: 90,
+        width: 110,
         padding: const pw.EdgeInsets.only(bottom: 2),
         decoration: const pw.BoxDecoration(
-          border: pw.Border(
-            bottom: pw.BorderSide(color: _ink, width: 0.7),
-          ),
+          border: pw.Border(bottom: pw.BorderSide(color: _ink, width: 0.7)),
         ),
         child: pw.Text(
-          'Direktur',
+          name,
           textAlign: pw.TextAlign.center,
           style: pw.TextStyle(
             fontSize: 10,
@@ -566,6 +569,12 @@ pw.Widget _signatureBlock() {
             color: _ink,
           ),
         ),
+      ),
+      pw.SizedBox(height: 2),
+      pw.Text(
+        'Direktur',
+        textAlign: pw.TextAlign.center,
+        style: const pw.TextStyle(fontSize: 9.5, color: _ink),
       ),
     ],
   );
@@ -575,12 +584,60 @@ pw.Widget _signatureBlock() {
 // Footer / decorative logos
 // ---------------------------------------------------------------------------
 
-/// Top-left banner rendered from the company logo asset.
-pw.Widget _topBannerLogo(pw.MemoryImage logo) {
+/// Full-width top banner copied from the geometric SVG in index.html.
+///
+/// Uses the same viewBox, polygon coordinates, and colors as the HTML:
+/// orange #ff8218, blue #5279bd, dark #343b45, and grey #9aa0a8.
+pw.Widget _topBannerGraphic() {
+  // Exact final user SVG. Only the viewBox is cropped from y=0..95 to
+  // y=3..95 to remove the narrow white strip at the top. All SVG paths,
+  // coordinates, colors and strokes are otherwise unchanged.
+  const svg = r'''
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="354" height="95" viewBox="0 3 354 92">
+  <rect width="354" height="95" fill="#ffffff"/>
+
+  <!-- Main orange left ribbon. -->
+  <path d="M 1,3
+           L 188,3
+           L 109,87
+           L 1,41
+           Z"
+        fill="#F88021"/>
+
+  <!-- Narrow dark bevel separating the orange and blue facets. -->
+  <path d="M 188,3
+           L 195,3
+           L 141,55
+           L 109,87
+           Z"
+        fill="#44526A"/>
+
+  <!-- Blue upper-right tapered facet. -->
+  <path d="M 195,3
+           L 320,3
+           L 188,39
+           L 141,55
+           Z"
+        fill="#4470C4"/>
+
+  <!-- Grey lower fold / triangular facet. -->
+  <path d="M 109,87
+           L 141,55
+           L 188,39
+           Z"
+        fill="#A3A3A3"/>
+
+  <!-- Fine triangular dark crease along the upper edge of the grey fold, reversed. -->
+  <path d="M 141,55 L 188,39 L 144,51 Z"
+        fill="#44526A"/>
+</svg>
+''';
+
   return pw.SizedBox(
     width: _bannerWidth,
     height: _bannerHeight,
-    child: pw.Image(logo, fit: pw.BoxFit.contain),
+    child: pw.SvgImage(svg: svg, fit: pw.BoxFit.fill),
   );
 }
 
@@ -603,7 +660,12 @@ pw.Widget _footerBanner() {
           text: pw.TextSpan(
             style: const pw.TextStyle(fontSize: 7.5, color: _address),
             children: [
-              pw.TextSpan(text: _companyAddress.replaceFirst('www.geoterraindonesia.co.id', '')),
+              pw.TextSpan(
+                text: _companyAddress.replaceFirst(
+                  'www.geoterraindonesia.co.id',
+                  '',
+                ),
+              ),
               const pw.TextSpan(
                 text: 'www.geoterraindonesia.co.id',
                 style: pw.TextStyle(color: _cyan),
@@ -619,17 +681,6 @@ pw.Widget _footerBanner() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-Future<pw.MemoryImage?> _loadLogo() async {
-  try {
-    final data = await rootBundle.load('lib/assets/invoice_logo.png');
-    return pw.MemoryImage(
-      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
-    );
-  } catch (_) {
-    return null;
-  }
-}
 
 /// Period label, e.g. `19 September 2026 s/d 19 Oktober 2026`.
 ///

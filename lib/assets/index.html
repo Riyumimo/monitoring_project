@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Invoice - PT Geoterra Indonesia</title>
+    <style>
+      :root {
+        --orange: #ff8218;
+        --blue: #5279bd;
+        --ink: #26323b;
+        --muted: #687386;
+        --line: #a9bdd8;
+        --pale: #e9eef8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #eef1f5;
+        color: var(--ink);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #202a35;
+        color: white;
+        padding: 10px 16px;
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      button {
+        border: 0;
+        border-radius: 7px;
+        padding: 10px 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .primary {
+        background: var(--orange);
+        color: #fff;
+      }
+      .secondary {
+        background: #fff;
+        color: #26323b;
+      }
+      .sheet {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 18px auto;
+        background: #fff;
+        position: relative;
+        padding: 29mm 16mm 15mm;
+        box-shadow: 0 4px 22px #0002;
+        overflow: hidden;
+      }
+      .banner {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 24mm;
+      }
+      .banner svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 13mm;
+      }
+      .brand {
+        font-weight: 800;
+        font-size: 14pt;
+        letter-spacing: -0.2px;
+      }
+      .brand .pt {
+        color: var(--orange);
+      }
+      .brand .geo {
+        color: #1598df;
+      }
+      .sub {
+        font-weight: 700;
+        font-size: 10.5pt;
+        margin-top: 3px;
+      }
+      .services {
+        font-size: 9.5pt;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .recipient {
+        text-align: right;
+        font-size: 10.5pt;
+        font-weight: 700;
+        line-height: 1.25;
+      }
+      .recipient .date {
+        margin-bottom: 3px;
+      }
+      .recipient .to {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      .heading {
+        text-align: center;
+        margin: 0 0 5mm;
+      }
+      .heading h1 {
+        font-size: 26pt;
+        line-height: 1;
+        margin: 0;
+        font-weight: 800;
+        letter-spacing: 0.3px;
+      }
+      .heading div {
+        font-weight: 700;
+        color: var(--orange);
+        font-size: 11pt;
+        margin-top: 4px;
+      }
+      .info {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 3mm;
+        background: var(--pale);
+        font-size: 11pt;
+      }
+      .info td {
+        border: 1px solid #d0d9e8;
+        padding: 6px 9px;
+        width: 50%;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .info strong {
+        display: block;
+        color: var(--ink);
+        margin-top: 2px;
+      }
+      table.items {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 10.5pt;
+      }
+      .items th {
+        background: var(--orange);
+        color: #fff;
+        padding: 12px 5px;
+        border: 1px solid #a9bdd8;
+        font-weight: 700;
+      }
+      .items td {
+        border: 1px solid var(--line);
+        padding: 9px 6px;
+        text-align: center;
+        height: 29px;
+      }
+      .items td:nth-child(2) {
+        text-align: center;
+      }
+      .items input {
+        font: inherit;
+        border: 0;
+        background: transparent;
+        text-align: inherit;
+        width: 100%;
+        min-width: 0;
+        color: inherit;
+        outline: none;
+      }
+      .items input:focus {
+        background: #fff6e9;
+        outline: 1px dashed var(--orange);
+      }
+      .num {
+        width: 8%;
+      }
+      .desc {
+        width: 35%;
+      }
+      .qty {
+        width: 10%;
+      }
+      .unit {
+        width: 10%;
+      }
+      .price {
+        width: 17%;
+      }
+      .amount {
+        width: 20%;
+      }
+      .totals {
+        width: 37%;
+        margin-left: auto;
+        border-collapse: collapse;
+        font-size: 10.5pt;
+      }
+      .totals td {
+        border: 1px solid var(--line);
+        padding: 7px 8px;
+        text-align: center;
+      }
+      .totals tr {
+        background: #f0f2f5;
+      }
+      .words {
+        text-align: right;
+        font-weight: 700;
+        font-style: italic;
+        margin: 4mm 0 13mm;
+        font-size: 11pt;
+      }
+      .payment {
+        font-size: 11pt;
+        line-height: 1.42;
+      }
+      .payment strong.title {
+        font-size: 11pt;
+      }
+      .payment .bank {
+        font-weight: 700;
+      }
+      .payment .row {
+        display: flex;
+        gap: 18px;
+      }
+      .payment .key {
+        width: 38mm;
+      }
+      .signature {
+        margin: 13mm 0 0 auto;
+        width: 52%;
+        text-align: center;
+        font-weight: 700;
+        min-height: 34mm;
+        position: relative;
+      }
+      .signature .company {
+        margin-bottom: 27mm;
+      }
+      .signature .director {
+        text-decoration: underline;
+      }
+      .footer {
+        position: absolute;
+        left: 16mm;
+        right: 16mm;
+        bottom: 12mm;
+        font-size: 9pt;
+        line-height: 1.35;
+        color: #26384e;
+      }
+      .rule {
+        height: 1.5mm;
+        width: 100%;
+        display: flex;
+        margin-bottom: 1px;
+      }
+      .rule .orange {
+        background: var(--orange);
+        width: 85%;
+      }
+      .rule .blue {
+        background: var(--blue);
+        flex: 1;
+      }
+      .footerbrand {
+        font-size: 11pt;
+        font-weight: 800;
+        color: #111;
+      }
+      .footerbrand .o {
+        color: var(--orange);
+      }
+      .footerbrand .b {
+        color: #1598df;
+      }
+      .footer a {
+        color: #1598df;
+        text-decoration: none;
+      }
+      .addrow {
+        margin-top: 8px;
+      }
+      @page {
+        size: A4;
+        margin: 0;
+      }
+      @media print {
+        body {
+          background: #fff;
+        }
+        .toolbar {
+          display: none;
+        }
+        .sheet {
+          margin: 0;
+          box-shadow: none;
+          width: 210mm;
+          height: 297mm;
+          min-height: 297mm;
+          page-break-after: avoid;
+        }
+        .items input {
+          appearance: none;
+        }
+        .items input:focus {
+          background: transparent;
+          outline: none;
+        }
+      }
+      @media (max-width: 800px) {
+        .sheet {
+          width: 100%;
+          min-height: unset;
+          margin: 0;
+          padding: 105px 18px 145px;
+        }
+        .banner {
+          height: 75px;
+        }
+        .top {
+          gap: 16px;
+        }
+        .brand {
+          font-size: 12pt;
+        }
+        .recipient {
+          font-size: 9pt;
+        }
+        .heading h1 {
+          font-size: 24pt;
+        }
+        .items {
+          font-size: 8pt !important;
+        }
+        .items th,
+        .items td {
+          padding: 6px 2px;
+        }
+        .info {
+          font-size: 9pt;
+        }
+        .footer {
+          left: 18px;
+          right: 18px;
+          bottom: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <button class="primary" onclick="window.print()">Cetak / Save PDF</button>
+      <button class="secondary" onclick="addRow()">+ Tambah Baris</button>
+      <button class="secondary" onclick="saveData()">Simpan</button>
+      <button class="secondary" onclick="resetData()">Reset</button>
+    </div>
+    <main class="sheet">
+      <div class="banner" aria-hidden="true">
+        <svg viewBox="0 0 1000 115" preserveAspectRatio="none">
+          <polygon points="0,0 245,0 137,108 0,49" fill="#ff8218" />
+          <polygon points="245,0 405,0 178,57 137,108" fill="#5279bd" />
+          <polygon points="245,0 265,0 178,57 137,108" fill="#343b45" />
+          <polygon points="178,57 245,0 265,0" fill="#9aa0a8" />
+        </svg>
+      </div>
+      <section class="top">
+        <div>
+          <div class="brand">
+            <span class="pt">PT.</span>
+            <span class="geo">GEOTERRA</span> INDONESIA
+          </div>
+          <div class="sub">Jasa Survei dan Pemetaan</div>
+          <div class="services">Topografi • Batimetri • Drone • LiDAR</div>
+        </div>
+        <div class="recipient">
+          <div class="date" contenteditable="true">Jambi, 21 Oktober 2026</div>
+          <div class="to">Kepada Yth.</div>
+          <div contenteditable="true">PT. WIJAYA KARYA</div>
+          <div contenteditable="true">JAMBI TAHAP 2</div>
+        </div>
+      </section>
+      <section class="heading">
+        <h1>INVOICE</h1>
+        <div>Tagihan Sewa Alat</div>
+      </section>
+      <table class="info">
+        <tr>
+          <td>
+            <span class="muted">Nomor Invoice</span
+            ><strong contenteditable="true">010/INV/SWA-GTI/X/2026</strong>
+          </td>
+          <td>
+            <span class="muted">Periode Sewa</span
+            ><strong contenteditable="true"
+              >19 September 2026 s/d 19 Oktober 2026</strong
+            >
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="muted">Penerbit Invoice</span
+            ><strong>PT. Geoterra Indonesia</strong>
+          </td>
+          <td>
+            <span class="muted">Terhitung</span
+            ><strong contenteditable="true">30 Hari</strong>
+          </td>
+        </tr>
+      </table>
+      <table class="items" id="items">
+        <thead>
+          <tr>
+            <th class="num">No.</th>
+            <th class="desc">Uraian Sewa</th>
+            <th class="qty">Kuantitas</th>
+            <th class="unit">Satuan</th>
+            <th class="price">Harga Perbulan</th>
+            <th class="amount">Jumlah</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td><input value="EFIX ESTR4 S.N 604288" /></td>
+            <td><input class="qtyv" type="number" value="1" min="0" /></td>
+            <td><input value="Unit" /></td>
+            <td>
+              <input class="pricev" value="5500000" inputmode="numeric" />
+            </td>
+            <td class="sum">Rp. 5,500,000</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><input value="Prisma Polygon" /></td>
+            <td><input class="qtyv" type="number" value="1" min="0" /></td>
+            <td><input value="Unit" /></td>
+            <td><input value="-" /></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><input value="Prisma Target" /></td>
+            <td><input class="qtyv" type="number" value="1" min="0" /></td>
+            <td><input value="Unit" /></td>
+            <td><input value="-" /></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><input value="Tripod" /></td>
+            <td><input class="qtyv" type="number" value="2" min="0" /></td>
+            <td><input value="Unit" /></td>
+            <td><input value="-" /></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><input value="Stick Pole 3,6 Meter" /></td>
+            <td><input class="qtyv" type="number" value="1" min="0" /></td>
+            <td><input value="Unit" /></td>
+            <td><input value="-" /></td>
+            <td>-</td>
+          </tr>
+        </tbody>
+      </table>
+      <table class="totals">
+        <tr>
+          <td>Subtotal</td>
+          <td id="subtotal">Rp 5.500.000</td>
+        </tr>
+        <tr>
+          <td>PPN 11%</td>
+          <td contenteditable="true">-</td>
+        </tr>
+        <tr>
+          <td>PPh 2% (dipotong)</td>
+          <td contenteditable="true">-</td>
+        </tr>
+      </table>
+      <div class="words" id="words">
+        Terbilang: Lima Juta Lima Ratus Ribu Rupiah.
+      </div>
+      <section class="payment">
+        <strong class="title">INFORMASI PEMBAYARAN</strong><br />
+        Pembayaran dapat dilakukan melalui transfer bank ke rekening berikut:<br />
+        <span class="bank" contenteditable="true">Bank BRI</span><br />
+        <div class="row">
+          <span class="key">Nomor Rekening</span
+          ><span contenteditable="true">: 5635-0101-1353-509</span>
+        </div>
+        <div class="row">
+          <span class="key">Atas Nama</span
+          ><span contenteditable="true">: SARIS</span>
+        </div>
+      </section>
+      <section class="signature">
+        <div class="company">PT. GEOTERRA INDONESIA</div>
+        <div class="director" contenteditable="true">SARIS</div>
+        <div>Direktur</div>
+      </section>
+      <footer class="footer">
+        <div class="rule">
+          <span class="orange"></span><span class="blue"></span>
+        </div>
+        <div class="footerbrand">
+          PT. <span class="o">GEO</span><span class="b">TERRA</span> INDONESIA
+        </div>
+        <div>
+          Alamat : Permai Jaya RT 08, Desa Mekar Jaya Sungai Gelam Muaro Jambi
+        </div>
+        <div>
+          Provinsi Jambi Telp : +62 853-7867-6656, Website :
+          <a href="https://www.geoterraindonesia.co.id"
+            >www.geoterraindonesia.co.id</a
+          >
+        </div>
+      </footer>
+    </main>
+    <script>
+      function rupiah(n) {
+        return "Rp. " + Math.round(n).toLocaleString("en-US");
+      }
+      function terbilang(n) {
+        const a = [
+          "",
+          "Satu",
+          "Dua",
+          "Tiga",
+          "Empat",
+          "Lima",
+          "Enam",
+          "Tujuh",
+          "Delapan",
+          "Sembilan",
+          "Sepuluh",
+          "Sebelas",
+        ];
+        function words(x) {
+          if (x < 12) return a[x];
+          if (x < 20) return words(x - 10) + " Belas";
+          if (x < 100)
+            return (
+              words(Math.floor(x / 10)) +
+              " Puluh" +
+              (x % 10 ? " " + words(x % 10) : "")
+            );
+          if (x < 200) return "Seratus" + (x > 100 ? " " + words(x - 100) : "");
+          if (x < 1000)
+            return (
+              words(Math.floor(x / 100)) +
+              " Ratus" +
+              (x % 100 ? " " + words(x % 100) : "")
+            );
+          if (x < 2000)
+            return "Seribu" + (x > 1000 ? " " + words(x - 1000) : "");
+          if (x < 1000000)
+            return (
+              words(Math.floor(x / 1000)) +
+              " Ribu" +
+              (x % 1000 ? " " + words(x % 1000) : "")
+            );
+          if (x < 1000000000)
+            return (
+              words(Math.floor(x / 1000000)) +
+              " Juta" +
+              (x % 1000000 ? " " + words(x % 1000000) : "")
+            );
+          return String(x);
+        }
+        return n === 0 ? "Nol" : words(Math.floor(n));
+      }
+      function calc() {
+        let total = 0;
+        document.querySelectorAll("#items tbody tr").forEach((r, i) => {
+          r.cells[0].textContent = i + 1;
+          let q = Number(r.querySelector(".qtyv")?.value || 0);
+          let p = r.querySelector(".pricev");
+          if (p) {
+            let v = Number((p.value || "").replace(/[^0-9]/g, ""));
+            total += q * v;
+            r.querySelector(".sum").textContent = rupiah(q * v);
+          }
+        });
+        document.getElementById("subtotal").textContent =
+          "Rp " + Math.round(total).toLocaleString("id-ID");
+        document.getElementById("words").textContent =
+          "Terbilang: " + terbilang(total) + " Rupiah.";
+      }
+      document.getElementById("items").addEventListener("input", calc);
+      function addRow() {
+        let b = document.querySelector("#items tbody"),
+          r = b.insertRow();
+        r.innerHTML =
+          '<td></td><td><input value="Uraian baru"></td><td><input class="qtyv" type="number" value="1" min="0"></td><td><input value="Unit"></td><td><input value="-"></td><td>-</td>';
+        calc();
+      }
+      function saveData() {
+        localStorage.setItem(
+          "geoterraInvoice",
+          document.querySelector(".sheet").innerHTML,
+        );
+        alert("Data invoice tersimpan di browser ini.");
+      }
+      function resetData() {
+        if (confirm("Reset tampilan ke data awal?")) location.reload();
+      }
+      calc();
+    </script>
+  </body>
+</html>

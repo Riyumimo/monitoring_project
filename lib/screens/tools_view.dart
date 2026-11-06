@@ -52,11 +52,20 @@ class ToolsView extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 22),
-          const Text('Rental Catalog', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          const Text(
+            'Rental Catalog',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
           for (final tool in rentalToolCatalog)
-            Card(child: ListTile(title: Text(tool.name),
-              subtitle: Text('${tool.category} • ${tool.description}\n${formatRupiah(tool.rentalRate)} / ${tool.unit} / day'),
-              trailing: Text('Stock: ${tool.stock}'))),
+            Card(
+              child: ListTile(
+                title: Text(tool.name),
+                subtitle: Text(
+                  '${tool.category} • ${tool.description}\n${formatRupiah(tool.rentalRate)} / ${tool.unit} / day',
+                ),
+                trailing: Text('Stock: ${tool.stock}'),
+              ),
+            ),
           const Text(
             'Tools & Equipment',
             style: TextStyle(
@@ -71,8 +80,8 @@ class ToolsView extends StatelessWidget {
               final columns = constraints.maxWidth >= 900
                   ? 3
                   : constraints.maxWidth >= 600
-                      ? 2
-                      : 1;
+                  ? 2
+                  : 1;
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -128,8 +137,10 @@ class ToolsView extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
