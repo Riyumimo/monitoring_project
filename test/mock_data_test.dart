@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/services/client_directory.dart';
-import 'package:geoterra_monitoring/services/mock_data.dart';
+import 'package:geoterra_monitoring/data/clients/client_directory.dart';
+import 'package:geoterra_monitoring/data/mock/mock_data.dart';
 
 void main() {
   test('mock 12-item offering has a complete description of work', () {

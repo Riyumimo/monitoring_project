@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/project.dart';
-import 'package:geoterra_monitoring/providers/project_provider.dart';
-import 'package:geoterra_monitoring/providers/timeline_provider.dart';
-import 'package:geoterra_monitoring/providers/worker_provider.dart';
-import 'package:geoterra_monitoring/screens/timeline_page.dart';
-import 'package:geoterra_monitoring/theme/app_theme.dart';
+import 'package:geoterra_monitoring/domain/models/project.dart';
+import 'package:geoterra_monitoring/features/offerings/providers/project_provider.dart';
+import 'package:geoterra_monitoring/features/timeline/providers/timeline_provider.dart';
+import 'package:geoterra_monitoring/features/workers/providers/worker_provider.dart';
+import 'package:geoterra_monitoring/features/timeline/presentation/screens/timeline_page.dart';
+import 'package:geoterra_monitoring/app/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 
 class _TestProjectProvider extends ProjectProvider {
@@ -28,7 +28,9 @@ class _TestWorkerProvider extends WorkerProvider {
 Widget _app({ProjectProvider? projectProvider}) {
   return MultiProvider(
     providers: [
-      ChangeNotifierProvider<WorkerProvider>(create: (_) => _TestWorkerProvider()),
+      ChangeNotifierProvider<WorkerProvider>(
+        create: (_) => _TestWorkerProvider(),
+      ),
       ChangeNotifierProvider(create: (_) => TimelineProvider()),
       ChangeNotifierProvider<ProjectProvider>.value(
         value: projectProvider ?? _TestProjectProvider(),

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/services/client_directory.dart';
+import 'package:geoterra_monitoring/data/clients/client_directory.dart';
 
 void main() {
   test('loads clients from the clients table', () {

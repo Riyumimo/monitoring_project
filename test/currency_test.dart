@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/utils/currency.dart';
+import 'package:geoterra_monitoring/core/utils/currency.dart';
 
 void main() {
   group('formatRupiah', () {

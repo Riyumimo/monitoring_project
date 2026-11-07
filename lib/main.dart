@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:provider/provider.dart';
-import 'providers/auth_provider.dart';
-import 'providers/project_provider.dart';
-import 'providers/timeline_provider.dart';
-import 'providers/worker_provider.dart';
-import 'router/app_router.dart';
-import 'services/error_logger.dart';
-import 'theme/app_theme.dart';
+import './features/auth/providers/auth_provider.dart';
+import './features/offerings/providers/project_provider.dart';
+import './features/timeline/providers/timeline_provider.dart';
+import './features/workers/providers/worker_provider.dart';
+import './app/router/app_router.dart';
+import './core/services/error_logger.dart';
+import './app/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,11 +26,10 @@ Future<void> main() async {
         ChangeNotifierProxyProvider<WorkerProvider, TimelineProvider>(
           create: (_) => TimelineProvider(),
           update: (_, workerProvider, timelineProvider) {
-            return timelineProvider!
-              ..syncWorkers(
-                workerProvider.workers,
-                hasLoaded: workerProvider.isLoaded,
-              );
+            return timelineProvider!..syncWorkers(
+              workerProvider.workers,
+              hasLoaded: workerProvider.isLoaded,
+            );
           },
         ),
       ],

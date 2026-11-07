@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/offering.dart';
-import 'package:geoterra_monitoring/models/rental_tool.dart';
+import 'package:geoterra_monitoring/domain/models/offering.dart';
+import 'package:geoterra_monitoring/domain/models/rental_tool.dart';
 
 void main() {
   test('Offering.rentalItems round-trips and calculates budget', () {
@@ -11,7 +11,13 @@ void main() {
       owner: 'Client',
       address: 'Address',
       rentalItems: [
-        RentalOfferingItem(tool: rentalToolCatalog[1], quantity: 2, duration: 5, startsAt: DateTime(2026, 10, 1), rate: 750000),
+        RentalOfferingItem(
+          tool: rentalToolCatalog[1],
+          quantity: 2,
+          duration: 5,
+          startsAt: DateTime(2026, 10, 1),
+          rate: 750000,
+        ),
       ],
     );
     expect(offering.budgetAmount, 2 * 5 * 750000);
@@ -31,8 +37,20 @@ void main() {
       address: 'Address',
       budgetAmount: 999999,
       rentalItems: [
-        RentalOfferingItem(tool: rentalToolCatalog[0], quantity: 1, duration: 10, startsAt: DateTime(2026, 9, 1), rate: 350000),
-        RentalOfferingItem(tool: rentalToolCatalog[2], quantity: 2, duration: 7, startsAt: DateTime(2026, 9, 2), rate: 100000),
+        RentalOfferingItem(
+          tool: rentalToolCatalog[0],
+          quantity: 1,
+          duration: 10,
+          startsAt: DateTime(2026, 9, 1),
+          rate: 350000,
+        ),
+        RentalOfferingItem(
+          tool: rentalToolCatalog[2],
+          quantity: 2,
+          duration: 7,
+          startsAt: DateTime(2026, 9, 2),
+          rate: 100000,
+        ),
       ],
     );
     expect(offering.budgetAmount, 1 * 10 * 350000 + 2 * 7 * 100000);

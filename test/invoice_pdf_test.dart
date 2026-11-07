@@ -1,12 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/line_item_text_run.dart';
-import 'package:geoterra_monitoring/models/offering.dart';
-import 'package:geoterra_monitoring/models/offering_line_item.dart';
-import 'package:geoterra_monitoring/models/payment.dart';
-import 'package:geoterra_monitoring/services/client_directory.dart';
-import 'package:geoterra_monitoring/services/invoice_pdf.dart';
+import 'package:geoterra_monitoring/domain/models/line_item_text_run.dart';
+import 'package:geoterra_monitoring/domain/models/offering.dart';
+import 'package:geoterra_monitoring/domain/models/offering_line_item.dart';
+import 'package:geoterra_monitoring/domain/models/payment.dart';
+import 'package:geoterra_monitoring/data/clients/client_directory.dart';
+import 'package:geoterra_monitoring/features/invoices/services/invoice_pdf.dart';
 
 void main() {
   const client = ClientRecord(

@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/project.dart';
-import 'package:geoterra_monitoring/models/user.dart';
-import 'package:geoterra_monitoring/providers/project_provider.dart';
-import 'package:geoterra_monitoring/providers/worker_provider.dart';
+import 'package:geoterra_monitoring/domain/models/project.dart';
+import 'package:geoterra_monitoring/domain/models/user.dart';
+import 'package:geoterra_monitoring/features/offerings/providers/project_provider.dart';
+import 'package:geoterra_monitoring/features/workers/providers/worker_provider.dart';
 
 void main() {
   test('workers can be added, updated, and deleted', () async {

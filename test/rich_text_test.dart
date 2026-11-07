@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/line_item_text_run.dart';
-import 'package:geoterra_monitoring/models/offering_line_item.dart';
-import 'package:geoterra_monitoring/utils/rich_text_controller.dart';
-import 'package:geoterra_monitoring/widgets/rich_text_shortcuts.dart';
+import 'package:geoterra_monitoring/domain/models/line_item_text_run.dart';
+import 'package:geoterra_monitoring/domain/models/offering_line_item.dart';
+import 'package:geoterra_monitoring/core/utils/rich_text_controller.dart';
+import 'package:geoterra_monitoring/core/widgets/rich_text_shortcuts.dart';
 
 void main() {
   test('text runs round-trip and normalize overlapping ranges', () {

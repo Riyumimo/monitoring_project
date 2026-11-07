@@ -1,12 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:geoterra_monitoring/providers/auth_provider.dart';
-import 'package:geoterra_monitoring/providers/project_provider.dart';
+import 'package:geoterra_monitoring/features/auth/providers/auth_provider.dart';
+import 'package:geoterra_monitoring/features/offerings/providers/project_provider.dart';
 import 'package:geoterra_monitoring/main.dart';
 
 void main() {
-  testWidgets('Unauthenticated users are redirected to the login screen',
-      (WidgetTester tester) async {
+  testWidgets('Unauthenticated users are redirected to the login screen', (
+    WidgetTester tester,
+  ) async {
     final auth = AuthProvider();
     await tester.pumpWidget(
       MultiProvider(

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/offering.dart';
-import 'package:geoterra_monitoring/services/invoice_numbering.dart';
+import 'package:geoterra_monitoring/domain/models/offering.dart';
+import 'package:geoterra_monitoring/features/invoices/services/invoice_numbering.dart';
 
 Offering _offering({
   required String id,

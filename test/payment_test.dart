@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/payment.dart';
+import 'package:geoterra_monitoring/domain/models/payment.dart';
 
 void main() {
   group('Payment', () {

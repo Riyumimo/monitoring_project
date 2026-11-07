@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/timeline.dart';
-import 'package:geoterra_monitoring/models/user.dart';
-import 'package:geoterra_monitoring/providers/timeline_provider.dart';
+import 'package:geoterra_monitoring/domain/models/timeline.dart';
+import 'package:geoterra_monitoring/domain/models/user.dart';
+import 'package:geoterra_monitoring/features/timeline/providers/timeline_provider.dart';
 
 void main() {
   test('seeds people and tasks for the timeline', () {
@@ -49,24 +49,21 @@ void main() {
     final originalTaskIds = provider.tasksFor(original.id).length;
     expect(originalTaskIds, greaterThan(0));
 
-    provider.syncWorkers(
-      [
-        User(
-          id: original.id,
-          name: 'Renamed Worker',
-          email: 'renamed@geoterra.com',
-          role: 'FieldWorker',
-          workerTypes: const [WorkerType.field, WorkerType.cad],
-        ),
-        User(
-          id: 'new-worker',
-          name: 'New Worker',
-          email: 'new@geoterra.com',
-          role: 'FieldWorker',
-        ),
-      ],
-      hasLoaded: true,
-    );
+    provider.syncWorkers([
+      User(
+        id: original.id,
+        name: 'Renamed Worker',
+        email: 'renamed@geoterra.com',
+        role: 'FieldWorker',
+        workerTypes: const [WorkerType.field, WorkerType.cad],
+      ),
+      User(
+        id: 'new-worker',
+        name: 'New Worker',
+        email: 'new@geoterra.com',
+        role: 'FieldWorker',
+      ),
+    ], hasLoaded: true);
 
     expect(provider.people.length, 2);
     expect(provider.people.first.name, 'Renamed Worker');

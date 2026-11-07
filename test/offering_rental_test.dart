@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/line_item_number_style.dart';
-import 'package:geoterra_monitoring/models/offering.dart';
-import 'package:geoterra_monitoring/models/offering_line_item.dart';
-import 'package:geoterra_monitoring/services/mock_data.dart';
-import 'package:geoterra_monitoring/utils/offering_line_items.dart';
+import 'package:geoterra_monitoring/domain/models/line_item_number_style.dart';
+import 'package:geoterra_monitoring/domain/models/offering.dart';
+import 'package:geoterra_monitoring/domain/models/offering_line_item.dart';
+import 'package:geoterra_monitoring/data/mock/mock_data.dart';
+import 'package:geoterra_monitoring/domain/rules/offering_line_items.dart';
 
 void main() {
   test('Rent Tool offerings are rentals and preserve their until date', () {

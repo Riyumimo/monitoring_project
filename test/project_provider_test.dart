@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoterra_monitoring/models/offering.dart';
-import 'package:geoterra_monitoring/providers/project_provider.dart';
+import 'package:geoterra_monitoring/domain/models/offering.dart';
+import 'package:geoterra_monitoring/features/offerings/providers/project_provider.dart';
 
 void main() {
   test('reloading projects keeps locally created offerings', () async {
