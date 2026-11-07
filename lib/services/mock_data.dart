@@ -79,6 +79,36 @@ class MockData {
       total: 8,
       available: 5,
     ),
+    ToolAsset(name: 'Tripod', category: 'Accessories', total: 14, available: 9),
+    ToolAsset(
+      name: 'Tribrach',
+      category: 'Accessories',
+      total: 10,
+      available: 6,
+    ),
+    ToolAsset(name: 'Prism', category: 'Accessories', total: 18, available: 12),
+    ToolAsset(
+      name: 'Prism Pole',
+      category: 'Accessories',
+      total: 12,
+      available: 7,
+    ),
+    ToolAsset(name: 'GNSS Rover', category: 'GNSS', total: 9, available: 5),
+    ToolAsset(name: 'RTK Dongle', category: 'GNSS', total: 6, available: 4),
+    ToolAsset(
+      name: 'Data Controller',
+      category: 'GNSS',
+      total: 8,
+      available: 6,
+    ),
+    ToolAsset(name: 'Drone LiDAR', category: 'Aerial', total: 2, available: 1),
+    ToolAsset(name: 'Radio Modem', category: 'GNSS', total: 5, available: 3),
+    ToolAsset(
+      name: 'Battery Pack',
+      category: 'Accessories',
+      total: 16,
+      available: 13,
+    ),
   ];
 
   static const List<String> serviceTypes = [

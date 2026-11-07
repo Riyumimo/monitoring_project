@@ -15,6 +15,7 @@ import '../providers/project_provider.dart';
 import '../router/app_router.dart';
 import '../services/client_directory.dart';
 import '../services/invoice_download.dart';
+import '../services/invoice_numbering.dart';
 import '../services/invoice_pdf.dart';
 import '../services/invoice_rental_pdf.dart';
 import '../theme/app_theme.dart';
@@ -337,6 +338,14 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
 
   Future<void> _downloadInvoice(Offering offering) async {
     if (_downloadingInvoice) return;
+    final issuedAt = DateTime.now();
+    final rentalInvoiceNumber = offering.isRentalService
+        ? _buildRentalInvoiceNumber(
+            context.read<ProjectProvider>().offerings,
+            offering,
+            issuedAt,
+          )
+        : null;
     OfferingTerm? selectedTerm;
     if (offering.terms.isNotEmpty) {
       final choice = await showDialog<Object?>(
@@ -422,8 +431,8 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
           ? await buildRentalInvoicePdf(
               offering: offering,
               clientName: _rentalRecipient(offering, client),
-              invoiceNumber: _buildInvoiceNumber(offering, selectedTerm),
-              issuedAt: DateTime.now(),
+              invoiceNumber: rentalInvoiceNumber!,
+              issuedAt: issuedAt,
               bankName: client?.bankName ?? '',
               bankAccountNumber: client?.bankAccountNumber ?? '',
               bankAccountName: client?.bankAccountName ?? '',
@@ -472,14 +481,18 @@ class _OfferingDetailScreenState extends State<OfferingDetailScreen> {
     return offering.owner.trim();
   }
 
-  String _buildInvoiceNumber(Offering offering, OfferingTerm? term) {
-    final base = offering.number.trim().isNotEmpty
-        ? offering.number.trim()
-        : offering.id;
-    final safe = base.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-');
-    if (term == null) return safe;
-    final termSlug = term.name.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-');
-    return '$safe-$termSlug';
+  /// Rent Tool invoices use `001/INV/SWA-GTI/X/2026`: a per-rental-service
+  /// sequence, the SWA (*sewa*) + GTI company code, the Roman issue month and
+  /// the year. See [InvoiceNumbering].
+  String _buildRentalInvoiceNumber(
+    List<Offering> offerings,
+    Offering offering,
+    DateTime issuedAt,
+  ) {
+    return InvoiceNumbering.rental(
+      sequence: InvoiceNumbering.rentalSequence(offerings, offering),
+      issuedAt: issuedAt,
+    );
   }
 
   Payment? get _latestPaymentWithProof {
@@ -2743,10 +2756,10 @@ class _PoDetailsDialogState extends State<_PoDetailsDialog> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final date = _poDate;
     if (date == null) return;
-    Navigator.pop<_PoDetails>(
-      context,
-      (number: _poNumberController.text.trim(), date: date),
-    );
+    Navigator.pop<_PoDetails>(context, (
+      number: _poNumberController.text.trim(),
+      date: date,
+    ));
   }
 
   @override
@@ -2772,8 +2785,7 @@ class _PoDetailsDialogState extends State<_PoDetailsDialog> {
                   labelText: 'PO number',
                   prefixIcon: Icon(Icons.description_outlined),
                 ),
-                validator: (value) =>
-                    (value?.trim().isEmpty ?? true)
+                validator: (value) => (value?.trim().isEmpty ?? true)
                     ? _poFieldRequiredMessage(context, isDate: false)
                     : null,
                 onFieldSubmitted: (_) => _submit(),

@@ -1331,7 +1331,7 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
       errorBorder: InputBorder.none,
       focusedErrorBorder: InputBorder.none,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       errorStyle: const TextStyle(fontSize: 10.5),
     );
   }
@@ -1513,55 +1513,718 @@ class _OfferingFormScreenState extends State<OfferingFormScreen> {
 
   Future<void> _editRentalItem([int? index]) async {
     final existing = index == null ? null : _rentalItems[index];
+    if (existing == null && rentalToolCatalog.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The rental catalog is empty.')),
+      );
+      return;
+    }
+
     var tool = existing?.tool ?? rentalToolCatalog.first;
     var start = existing?.startsAt ?? DateTime.now();
     final quantity = TextEditingController(text: '${existing?.quantity ?? 1}');
     final duration = TextEditingController(text: '${existing?.duration ?? 1}');
-    final rate = TextEditingController(text: formatRupiahInput(existing?.rate ?? tool.rentalRate));
-    final key = GlobalKey<FormState>();
-    final result = await showDialog<RentalOfferingItem>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
-      title: Text(existing == null ? 'Add rental tool' : 'Edit rental tool'),
-      content: SizedBox(width: 440, child: Form(key: key, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(initialValue: tool.id, isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Catalog tool'),
-          items: [for (final entry in {for (final t in rentalToolCatalog) t.id: t, tool.id: tool}.values) DropdownMenuItem(value: entry.id, child: Text(entry.name, overflow: TextOverflow.ellipsis))],
-          onChanged: (id) => update(() { tool = rentalToolCatalog.firstWhere((t) => t.id == id); rate.text = formatRupiahInput(tool.rentalRate); })),
-        Text('${tool.description}\nStock: ${tool.stock} ${tool.unit}; rate per day'),
-        TextFormField(controller: quantity, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number,
-          validator: (v) { final n = int.tryParse(v ?? ''); return n == null || n < 1 || n > tool.stock ? 'Enter 1 to ${tool.stock}' : null; }),
-        TextFormField(controller: duration, decoration: const InputDecoration(labelText: 'Duration (days, inclusive)'), keyboardType: TextInputType.number,
-          validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? 'Enter positive days' : null),
-        TextFormField(controller: rate, decoration: const InputDecoration(labelText: 'Daily rate', prefixText: 'Rp '), keyboardType: TextInputType.number, inputFormatters: const [RupiahInputFormatter()],
-          validator: (v) { final n = parseRupiah(v ?? ''); return n == null || !n.isFinite || n < 0 ? 'Enter a valid rate' : null; }),
-        _dateField(label: 'Start date', value: start, onPick: (date) => update(() => start = date)),
-      ])))),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: () { if (key.currentState!.validate()) Navigator.pop(context, RentalOfferingItem(tool: tool, quantity: int.parse(quantity.text), duration: int.parse(duration.text), startsAt: start, rate: parseRupiah(rate.text)!)); }, child: const Text('Save tool'))],
-    )));
-    // Dialog route transitions may still hold the field controllers.
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    quantity.dispose(); duration.dispose(); rate.dispose();
+    final rate = TextEditingController(
+      text: formatRupiahInput(existing?.rate ?? tool.rentalRate),
+    );
+    final formKey = GlobalKey<FormState>();
+    final toolOptions = {
+      for (final item in rentalToolCatalog) item.id: item,
+      tool.id: tool,
+    };
+
+    RentalOfferingItem? result;
+    try {
+      result = await showDialog<RentalOfferingItem>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, update) {
+            final qty = int.tryParse(quantity.text) ?? 0;
+            final days = int.tryParse(duration.text) ?? 0;
+            final dailyRate = parseRupiah(rate.text) ?? 0.0;
+            final estimate = (qty * days * dailyRate).toDouble();
+            final compact = MediaQuery.sizeOf(dialogContext).width < 480;
+            final fieldBorder = OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
+            );
+
+            void save() {
+              if (!(formKey.currentState?.validate() ?? false)) return;
+              Navigator.of(dialogContext).pop(RentalOfferingItem(
+                tool: tool,
+                quantity: int.parse(quantity.text),
+                duration: int.parse(duration.text),
+                startsAt: start,
+                rate: parseRupiah(rate.text)!,
+              ));
+            }
+
+            final quantityField = TextFormField(
+              controller: quantity,
+              decoration: InputDecoration(
+                labelText: 'Quantity',
+                suffixText: tool.unit,
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onChanged: (_) => update(() {}),
+              validator: (value) {
+                final amount = int.tryParse((value ?? '').trim());
+                if (amount == null || amount < 1) return 'Enter at least 1';
+                if (amount > tool.stock) return 'Maximum ${tool.stock}';
+                return null;
+              },
+            );
+            final durationField = TextFormField(
+              controller: duration,
+              decoration: const InputDecoration(
+                labelText: 'Duration',
+                suffixText: 'days',
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onChanged: (_) => update(() {}),
+              validator: (value) =>
+                  (int.tryParse(value?.trim() ?? '') ?? 0) < 1
+                      ? 'Enter at least 1 day'
+                      : null,
+            );
+
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              backgroundColor: AppColors.surface,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 520,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.86,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  existing == null ? 'Add rental item' : 'Edit rental item',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Choose equipment and set its rental terms.',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close dialog',
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            icon: const Icon(Icons.close, size: 19),
+                            color: AppColors.textSecondary,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Flexible(
+                      child: Theme(
+                        data: Theme.of(dialogContext).copyWith(
+                          inputDecorationTheme: Theme.of(dialogContext)
+                              .inputDecorationTheme.copyWith(
+                            filled: true,
+                            fillColor: AppColors.surface,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            border: fieldBorder,
+                            enabledBorder: fieldBorder,
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: Form(
+                            key: formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                DropdownButtonFormField<String>(
+                                  key: ValueKey('rental-tool-${tool.id}'),
+                                  initialValue: tool.id,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Catalog equipment',
+                                  ),
+                                  items: [
+                                    for (final item in toolOptions.values)
+                                      DropdownMenuItem<String>(
+                                        value: item.id,
+                                        child: Text(item.name, overflow: TextOverflow.ellipsis),
+                                      ),
+                                  ],
+                                  onChanged: (id) {
+                                    final selected = id == null ? null : toolOptions[id];
+                                    if (selected == null) return;
+                                    update(() {
+                                      tool = selected;
+                                      rate.text = formatRupiahInput(tool.rentalRate);
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
+                                    border: Border.all(color: AppColors.border),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(tool.name, style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      )),
+                                      if (tool.description.trim().isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(tool.description, style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary,
+                                        )),
+                                      ],
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(child: Text(
+                                            'Stock\n${tool.stock} ${tool.unit}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              height: 1.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: tool.stock > 0
+                                                  ? AppColors.completed
+                                                  : AppColors.onHold,
+                                            ),
+                                          )),
+                                          Expanded(child: Text(
+                                            'Catalog rate\n${formatRupiah(tool.rentalRate)} / day',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              height: 1.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                          )),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                LayoutBuilder(
+                                  builder: (context, constraints) => constraints.maxWidth < 360
+                                      ? Column(children: [
+                                          quantityField,
+                                          const SizedBox(height: 12),
+                                          durationField,
+                                        ])
+                                      : Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(child: quantityField),
+                                            const SizedBox(width: 12),
+                                            Expanded(child: durationField),
+                                          ],
+                                        ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: rate,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Daily rental rate',
+                                    prefixText: 'Rp ',
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: const [RupiahInputFormatter()],
+                                  onChanged: (_) => update(() {}),
+                                  validator: (value) {
+                                    final amount = parseRupiah(value ?? '');
+                                    return amount == null || !amount.isFinite || amount < 0
+                                        ? 'Enter a valid rate'
+                                        : null;
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                _dateField(
+                                  label: 'Start date',
+                                  value: start,
+                                  onPick: (date) => update(() => start = date),
+                                ),
+                                const SizedBox(height: 20),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.07),
+                                    border: Border.all(
+                                      color: AppColors.primary.withValues(alpha: 0.2),
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(child: Text(
+                                        '$qty ${tool.unit} × $days days',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      )),
+                                      const SizedBox(width: 12),
+                                      Flexible(child: Text(
+                                        formatRupiah(estimate),
+                                        textAlign: TextAlign.end,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.primary,
+                                        ),
+                                      )),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: save,
+                            child: Text(existing == null ? 'Add item' : 'Save changes'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      quantity.dispose();
+      duration.dispose();
+      rate.dispose();
+    }
+
     if (!mounted || result == null) return;
     setState(() {
-      if (index == null) { _rentalItems.add(result); } else { _rentalItems[index] = result; }
-      _rentalUntil = _rentalItems.map((i) => i.endsAt).reduce((a, b) => a.isAfter(b) ? a : b);
+      if (index == null) {
+        _rentalItems.add(result!);
+      } else {
+        _rentalItems[index] = result!;
+      }
+      _rentalUntil = _rentalItems
+          .map((item) => item.endsAt)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
     });
   }
 
-  Widget _rentalItemsCard() => _sectionCard(title: 'Rental Tools', children: [
-    const Text('Rates are saved with this offering. Duration includes the start and end day. Stock is catalog capacity, not a live reservation.'),
-    for (var i = 0; i < _rentalItems.length; i++) ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(_rentalItems[i].tool.name),
-      subtitle: Text('${_rentalItems[i].quantity} ${_rentalItems[i].tool.unit} × ${_rentalItems[i].duration} days × ${formatRupiah(_rentalItems[i].rate)}\n${_rentalItems[i].startsAt.toString().split(' ').first} – ${_rentalItems[i].endsAt.toString().split(' ').first}'),
-      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        IconButton(tooltip: 'Edit rental tool', onPressed: () => _editRentalItem(i), icon: const Icon(Icons.edit_outlined)),
-        IconButton(tooltip: 'Remove rental tool', onPressed: () => setState(() => _rentalItems.removeAt(i)), icon: const Icon(Icons.delete_outline)),
-      ]),
-    ),
-    OutlinedButton.icon(onPressed: _editRentalItem, icon: const Icon(Icons.add), label: const Text('Add rental tool')),
-    Text('Rental total: ${formatRupiah(_rentalItems.fold<double>(0, (sum, item) => sum + item.total))}'),
-  ]);
+  Widget _rentalItemsCard() {
+    final rentalTotal = _rentalItems.fold<double>(
+      0,
+      (sum, item) => sum + item.total,
+    );
+
+    String dateLabel(DateTime date) =>
+        '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/${date.year}';
+
+    Widget headerCell(String label, {TextAlign align = TextAlign.left}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Text(
+          label,
+          textAlign: align,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    return _sectionCard(
+      title: 'Rental Tools',
+      children: [
+        const Text(
+          'Rates are saved with this offering. Rental dates include both the '
+          'start and end day.',
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.45,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${_rentalItems.length.toString().padLeft(2, '0')} '
+                '${_rentalItems.length == 1 ? 'ITEM' : 'ITEMS'}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: _editRentalItem,
+              icon: const Icon(Icons.add, size: 17),
+              label: const Text('Add rental tool'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 11,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_rentalItems.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: const Column(
+              children: [
+                Text(
+                  'No rental tools added',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Add equipment to include it in this offering.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tableWidth = constraints.maxWidth < 900
+                  ? 900.0
+                  : constraints.maxWidth;
+
+              return Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Table(
+                      columnWidths: const {
+                        0: FixedColumnWidth(44),
+                        1: FlexColumnWidth(4),
+                        2: FlexColumnWidth(3.2),
+                        3: FlexColumnWidth(1.1),
+                        4: FlexColumnWidth(2.1),
+                        5: FlexColumnWidth(2.1),
+                        6: FixedColumnWidth(80),
+                      },
+                      defaultVerticalAlignment:
+                          TableCellVerticalAlignment.middle,
+                      border: const TableBorder(
+                        horizontalInside: BorderSide(color: AppColors.border),
+                      ),
+                      children: [
+                        TableRow(
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                          ),
+                          children: [
+                            headerCell('NO.'),
+                            headerCell('EQUIPMENT'),
+                            headerCell('RENTAL PERIOD'),
+                            headerCell('QTY', align: TextAlign.center),
+                            headerCell('RATE / DAY', align: TextAlign.right),
+                            headerCell('SUBTOTAL', align: TextAlign.right),
+                            headerCell(''),
+                          ],
+                        ),
+                        for (var index = 0;
+                            index < _rentalItems.length;
+                            index++)
+                          _rentalTableRow(
+                            index,
+                            dateLabel: dateLabel,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'RENTAL TOTAL',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Text(
+                formatRupiah(rentalTotal),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _rentalTableCell(
+    Widget child, {
+    Alignment alignment = Alignment.centerLeft,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Align(alignment: alignment, child: child),
+    );
+  }
+
+  TableRow _rentalTableRow(
+    int index, {
+    required String Function(DateTime) dateLabel,
+  }) {
+    final item = _rentalItems[index];
+    final durationLabel =
+        '${item.duration} day${item.duration == 1 ? '' : 's'}';
+
+    return TableRow(
+      children: [
+        _rentalTableCell(
+          Text(
+            (index + 1).toString().padLeft(2, '0'),
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        _rentalTableCell(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.tool.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.tool.description,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _rentalTableCell(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${dateLabel(item.startsAt)} – ${dateLabel(item.endsAt)}',
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                durationLabel,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _rentalTableCell(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                '${item.quantity}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.tool.unit,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+        ),
+        _rentalTableCell(
+          Text(
+            formatRupiah(item.rate),
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          alignment: Alignment.centerRight,
+        ),
+        _rentalTableCell(
+          Text(
+            formatRupiah(item.total),
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          alignment: Alignment.centerRight,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                tooltip: 'Edit rental tool',
+                onPressed: () => _editRentalItem(index),
+                visualDensity: VisualDensity.compact,
+                iconSize: 17,
+                color: AppColors.secondary,
+                icon: const Icon(Icons.edit_outlined),
+              ),
+              IconButton(
+                tooltip: 'Remove rental tool',
+                onPressed: () => setState(() => _rentalItems.removeAt(index)),
+                visualDensity: VisualDensity.compact,
+                iconSize: 17,
+                color: AppColors.textSecondary,
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _rentalCard() {
     return _sectionCard(
